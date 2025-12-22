@@ -70,6 +70,7 @@ const int PIN_MAX6675_CS  = 2;   // CS
 // PARAMÈTRES GÉNÉRAUX
 // --------------------------------------------------------------------
 const unsigned long SNAPSHOT_PERIOD_MS = 1000;
+const unsigned long NEXTION_BAUD = 9600;
 unsigned long lastTickMs = 0;
 bool autoSnapshotEnabled = true;
 
@@ -97,6 +98,12 @@ unsigned long stopStartMs   = 0;
 
 // Repère de start (NO FIRE + diag NO DEP)
 unsigned long lastStartMs = 0;
+
+static const char* boilerStateStr() {
+  if (boilerOn) return "RUN";
+  if (stopCooldownActive) return "COOLDOWN";
+  return "IDLE";
+}
 
 // --------------------------------------------------------------------
 // PUISSANCE : 3 niveaux + paramètres actifs (override possible)
@@ -144,6 +151,51 @@ const unsigned long PELLET_MAX_CONTINUOUS_ON_MS = 3000UL; // 3 s (sécurité deb
 bool lastPelletLogged = false;
 unsigned long pelletOnSinceMs = 0;
 unsigned long pelletLongestOnMs = 0;
+
+// --------------------------------------------------------------------
+// NEXTION (TX1/RX1 TTL)
+// --------------------------------------------------------------------
+static void nextionWriteTerminator() {
+  Serial1.write(0xFF);
+  Serial1.write(0xFF);
+  Serial1.write(0xFF);
+}
+
+static void nextionPrintKeyVal(const __FlashStringHelper* key, const char* val) {
+  Serial1.print(key);
+  Serial1.print('=');
+  Serial1.print(val);
+}
+
+static void nextionPrintKeyVal(const __FlashStringHelper* key, const __FlashStringHelper* val) {
+  Serial1.print(key);
+  Serial1.print('=');
+  Serial1.print(val);
+}
+
+static void nextionPrintBool(const __FlashStringHelper* key, bool v) {
+  nextionPrintKeyVal(key, v ? "1" : "0");
+}
+
+static void nextionPrintEnum(const __FlashStringHelper* key, const __FlashStringHelper* val) { nextionPrintKeyVal(key, val); }
+static void nextionPrintEnum(const __FlashStringHelper* key, const char* val) { nextionPrintKeyVal(key, val); }
+
+static void nextionPrintFloat(const __FlashStringHelper* key, float v, uint8_t decimals) {
+  char buf[16];
+  if (isnan(v) || isinf(v)) {
+    strncpy(buf, "NaN", sizeof(buf));
+    buf[sizeof(buf) - 1] = '\0';
+  } else {
+    dtostrf(v, 0, decimals, buf);
+  }
+  nextionPrintKeyVal(key, buf);
+}
+
+static void nextionPrintUint(const __FlashStringHelper* key, unsigned long v) {
+  char buf[16];
+  ultoa(v, buf, 10);
+  nextionPrintKeyVal(key, buf);
+}
 
 // --------------------------------------------------------------------
 // SECURITES
@@ -275,6 +327,7 @@ void readAllSensorsOnce();
 void checkSafeties(unsigned long now);
 void logAutoEventIfChanged(unsigned long nowMs);
 void printSnapshot();
+void nextionSendSnapshot();
 void applyOutputs();
 void forceCooldown(unsigned long now);
 
@@ -1107,6 +1160,34 @@ void printSnapshot() {
   Serial.println(F("============================"));
 }
 
+// Format compact pour écran Nextion (1 frame / seconde)
+void nextionSendSnapshot() {
+  float tWaterC   = waterTempC_fromRaw(rawNTC);
+  float pWaterBar = waterPressureBarFromRaw(rawPressure);
+
+  Serial1.print(F("SNAP;"));
+  nextionPrintEnum(F("mode"), modeToStr(controlMode)); Serial1.print(';');
+  nextionPrintBool(F("demand"), programDemandOn); Serial1.print(';');
+  nextionPrintBool(F("forceCooldown"), forceCooldownActive); Serial1.print(';');
+  nextionPrintEnum(F("state"), boilerStateStr()); Serial1.print(';');
+  nextionPrintEnum(F("power"), pwrToStr(powerLevel)); Serial1.print(';');
+
+  nextionPrintFloat(F("tw"), tWaterC, 1); Serial1.print(';');
+  nextionPrintFloat(F("tf"), lastTempFumeesC, 1); Serial1.print(';');
+  nextionPrintFloat(F("press"), pWaterBar, 2); Serial1.print(';');
+  nextionPrintFloat(F("fan"), fanVoltageV, 1); Serial1.print(';');
+  nextionPrintBool(F("pellet"), statePellet); Serial1.print(';');
+  nextionPrintBool(F("pump"), statePump); Serial1.print(';');
+  nextionPrintBool(F("candle"), stateCandle); Serial1.print(';');
+
+  nextionPrintUint(F("pelletLongest"), pelletLongestOnMs); Serial1.print(';');
+
+  // Texte alarme ("none" si aucune)
+  nextionPrintKeyVal(F("alarm"), alarmActive ? alarmText : "none");
+  Serial1.println();
+  nextionWriteTerminator();
+}
+
 bool validatePowerParams(bool printErr) {
   if (pelletCyclePeriodMs < 1000UL || pelletCyclePeriodMs > 60000UL) {
     if (printErr) Serial.println(F("ERR: PP range 1000..60000"));
@@ -1480,14 +1561,41 @@ void handleCommand(const String &lineIn) {
 
 
 
-void serviceSerial() {
-  static String buffer;
-  while (Serial.available() > 0) {
-    char c = (char)Serial.read();
+struct StreamBuffer {
+  String data;
+  uint8_t ffCount;
+};
+
+static void serviceStream(Stream& io, StreamBuffer& buffer, bool acceptNextionTerminator) {
+  while (io.available() > 0) {
+    char c = (char)io.read();
     if (c == '\r') continue;
-    if (c == '\n') { handleCommand(buffer); buffer = ""; }
-    else buffer += c;
+
+    // Nextion commands are terminated by three 0xFF bytes; accept that framing on Serial1.
+    if (acceptNextionTerminator && ((uint8_t)c == 0xFF)) {
+      if (++buffer.ffCount >= 3) {
+        handleCommand(buffer.data);
+        buffer.data = "";
+        buffer.ffCount = 0;
+      }
+      continue;
+    }
+    buffer.ffCount = 0;
+
+    if (c == '\n') {
+      handleCommand(buffer.data);
+      buffer.data = "";
+    } else {
+      buffer.data += c;
+    }
   }
+}
+
+void serviceSerial() {
+  static StreamBuffer usbBuffer = {"", 0};
+  static StreamBuffer ttlBuffer = {"", 0};
+  serviceStream(Serial, usbBuffer, false);
+  serviceStream(Serial1, ttlBuffer, true);
 }
 
 // --------------------------------------------------------------------
@@ -1537,6 +1645,7 @@ void setup() {
   captureResetCauseEarly();
 
   Serial.begin(115200);
+  Serial1.begin(NEXTION_BAUD);
 
   // Évite blocage éternel si pas d'USB: max ~2s
   unsigned long t0 = millis();
@@ -1685,6 +1794,9 @@ void loop() {
     rtcStatsPrint1Hz(now);
 
     if (autoSnapshotEnabled) printSnapshot();
+
+    // Flux compact pour écran tactile Nextion (TTL TX1/RX1)
+    nextionSendSnapshot();
   }
 
   // Watchdog feed: à la fin de loop quand tout s'est bien déroulé
