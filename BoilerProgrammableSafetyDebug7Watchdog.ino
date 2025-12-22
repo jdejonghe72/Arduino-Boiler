@@ -333,7 +333,10 @@ const __FlashStringHelper* pwrToStr(PowerLevel p);
 void readAllSensorsOnce();
 void checkSafeties(unsigned long now);
 void logAutoEventIfChanged(unsigned long nowMs);
-void printSnapshot();
+void printSnapshot(Stream& out = Serial);
+void printParams(Stream& out = Serial);
+void printSchedule(Stream& out = Serial);
+void printHelp(Stream& out = Serial);
 void nextionSendSnapshot();
 void applyOutputs();
 void forceCooldown(unsigned long now);
@@ -1021,21 +1024,21 @@ void logAutoEventIfChanged(unsigned long nowMs) {
 // --------------------------------------------------------------------
 // Affichages / help
 // --------------------------------------------------------------------
-static void print2d(int v) { if (v < 10) Serial.print('0'); Serial.print(v); }
+static void print2d(Stream& out, int v) { if (v < 10) out.print('0'); out.print(v); }
 
-void printTimeLine() {
+void printTimeLine(Stream& out = Serial) {
   if (!rtcReadOk()) {
-    Serial.println(F("RTC: read error (check switches RTC SCL/SDA + SETTIME)."));
+    out.println(F("RTC: read error (check switches RTC SCL/SDA + SETTIME)."));
     return;
   }
-  Serial.print(F("RTC: "));
-  Serial.print(RTC.getYear()); Serial.print('-');
-  print2d(RTC.getMonth()); Serial.print('-');
-  print2d(RTC.getMonthDay()); Serial.print(' ');
-  print2d(RTC.getHour()); Serial.print(':');
-  print2d(RTC.getMinute()); Serial.print(':');
-  print2d(RTC.getSecond());
-  Serial.print(F("  DOW=")); Serial.println(dowFromRTC());
+  out.print(F("RTC: "));
+  out.print(RTC.getYear()); out.print('-');
+  print2d(out, RTC.getMonth()); out.print('-');
+  print2d(out, RTC.getMonthDay()); out.print(' ');
+  print2d(out, RTC.getHour()); out.print(':');
+  print2d(out, RTC.getMinute()); out.print(':');
+  print2d(out, RTC.getSecond());
+  out.print(F("  DOW=")); out.println(dowFromRTC());
 }
 
 const __FlashStringHelper* modeToStr(ControlMode m) {
@@ -1056,32 +1059,32 @@ const __FlashStringHelper* pwrToStr(PowerLevel p) {
   }
 }
 
-void printParams() {
-  Serial.println(F("=== PARAMS (power) ==="));
-  Serial.print(F("LEVEL = ")); Serial.println(pwrToStr(powerLevel));
-  Serial.print(F("PP  = ")); Serial.print(pelletCyclePeriodMs); Serial.println(F(" ms"));
-  Serial.print(F("PON = ")); Serial.print(pelletOnDurationMs);  Serial.println(F(" ms"));
-  Serial.print(F("FV  = ")); Serial.print(runFanVoltageV, 1);   Serial.println(F(" V"));
-  Serial.println(F("======================"));
+void printParams(Stream& out) {
+  out.println(F("=== PARAMS (power) ==="));
+  out.print(F("LEVEL = ")); out.println(pwrToStr(powerLevel));
+  out.print(F("PP  = ")); out.print(pelletCyclePeriodMs); out.println(F(" ms"));
+  out.print(F("PON = ")); out.print(pelletOnDurationMs);  out.println(F(" ms"));
+  out.print(F("FV  = ")); out.print(runFanVoltageV, 1);   out.println(F(" V"));
+  out.println(F("======================"));
 }
 
-void printSchedule() {
+void printSchedule(Stream& out) {
   static const char* dn[7] = {"Lun","Mar","Mer","Jeu","Ven","Sam","Dim"};
   for (int d = 0; d < 7; d++) {
     DaySchedule &ds = weekSched[d];
-    Serial.print(dn[d]); Serial.print(F(" : "));
-    Serial.print(ds.start1/60); Serial.print(':'); print2d(ds.start1%60);
-    Serial.print(F("-"));
-    Serial.print(ds.end1/60); Serial.print(':'); print2d(ds.end1%60);
-    Serial.print(F("   "));
-    Serial.print(ds.start2/60); Serial.print(':'); print2d(ds.start2%60);
-    Serial.print(F("-"));
-    Serial.print(ds.end2/60); Serial.print(':'); print2d(ds.end2%60);
-    Serial.println();
+    out.print(dn[d]); out.print(F(" : "));
+    out.print(ds.start1/60); out.print(':'); print2d(out, ds.start1%60);
+    out.print(F("-"));
+    out.print(ds.end1/60); out.print(':'); print2d(out, ds.end1%60);
+    out.print(F("   "));
+    out.print(ds.start2/60); out.print(':'); print2d(out, ds.start2%60);
+    out.print(F("-"));
+    out.print(ds.end2/60); out.print(':'); print2d(out, ds.end2%60);
+    out.println();
   }
 }
 
-void printSnapshot() {
+void printSnapshot(Stream& out) {
   bool acNoDepPresent     = acPresentFromRaw(rawNoDep);
   bool acPelletsOHPresent = acPresentFromRaw(rawPelletsOH);
   bool acWaterOHPresent   = acPresentFromRaw(rawWaterOH);
@@ -1097,74 +1100,74 @@ void printSnapshot() {
   float dep_dV    = depressionDeltaVolts(rawDep);
   float dep_dMbar = 10.0f * dep_dV;
 
-  Serial.println(F("===== SNAPSHOT M-Duino ====="));
-  printTimeLine();
+  out.println(F("===== SNAPSHOT M-Duino ====="));
+  printTimeLine(out);
 
-  Serial.print(F("MODE: "));
-  Serial.print(modeToStr(controlMode));
-  Serial.print(F("  programDemand="));
-  Serial.print(programDemandOn ? F("ON") : F("OFF"));
-  Serial.print(F("  forceCooldown="));
-  Serial.println(forceCooldownActive ? F("ON") : F("OFF"));
+  out.print(F("MODE: "));
+  out.print(modeToStr(controlMode));
+  out.print(F("  programDemand="));
+  out.print(programDemandOn ? F("ON") : F("OFF"));
+  out.print(F("  forceCooldown="));
+  out.println(forceCooldownActive ? F("ON") : F("OFF"));
 
-  Serial.print(F("Power: LEVEL=")); Serial.print(pwrToStr(powerLevel));
-  Serial.print(F(" PP=")); Serial.print(pelletCyclePeriodMs);
-  Serial.print(F(" PON="));      Serial.print(pelletOnDurationMs);
-  Serial.print(F(" FV="));       Serial.print(runFanVoltageV, 1);
-  Serial.println();
+  out.print(F("Power: LEVEL=")); out.print(pwrToStr(powerLevel));
+  out.print(F(" PP=")); out.print(pelletCyclePeriodMs);
+  out.print(F(" PON="));      out.print(pelletOnDurationMs);
+  out.print(F(" FV="));       out.print(runFanVoltageV, 1);
+  out.println();
 
-  Serial.print(F("Pellet ON longest   : "));
-  Serial.print(pelletLongestOnMs);
-  Serial.println(F(" ms (since boot/forceIdle)"));
+  out.print(F("Pellet ON longest   : "));
+  out.print(pelletLongestOnMs);
+  out.println(F(" ms (since boot/forceIdle)"));
 
-  Serial.print(F("I0.7  No depression : RAW=")); Serial.print(rawNoDep);
-  Serial.print(F("  -> ")); Serial.println(acNoDepPresent ? F("AC PRESENT") : F("AC ABSENT"));
+  out.print(F("I0.7  No depression : RAW=")); out.print(rawNoDep);
+  out.print(F("  -> ")); out.println(acNoDepPresent ? F("AC PRESENT") : F("AC ABSENT"));
 
-  Serial.print(F("I0.8  Pellets OH    : RAW=")); Serial.print(rawPelletsOH);
-  Serial.print(F("  -> ")); Serial.println(acPelletsOHPresent ? F("AC PRESENT") : F("AC ABSENT"));
+  out.print(F("I0.8  Pellets OH    : RAW=")); out.print(rawPelletsOH);
+  out.print(F("  -> ")); out.println(acPelletsOHPresent ? F("AC PRESENT") : F("AC ABSENT"));
 
-  Serial.print(F("I0.9  Water OH      : RAW=")); Serial.print(rawWaterOH);
-  Serial.print(F("  -> ")); Serial.println(acWaterOHPresent ? F("AC PRESENT") : F("AC ABSENT"));
+  out.print(F("I0.9  Water OH      : RAW=")); out.print(rawWaterOH);
+  out.print(F("  -> ")); out.println(acWaterOHPresent ? F("AC PRESENT") : F("AC ABSENT"));
 
-  Serial.print(F("I0.10 NTC eau       : RAW=")); Serial.print(rawNTC);
-  Serial.print(F("  V=")); Serial.print(vNTC, 3);
-  Serial.print(F("  T="));
-  if (isnan(tWaterC)) Serial.println(F("NaN"));
-  else { Serial.print(tWaterC, 1); Serial.println(F(" °C")); }
+  out.print(F("I0.10 NTC eau       : RAW=")); out.print(rawNTC);
+  out.print(F("  V=")); out.print(vNTC, 3);
+  out.print(F("  T="));
+  if (isnan(tWaterC)) out.println(F("NaN"));
+  else { out.print(tWaterC, 1); out.println(F(" °C")); }
 
-  Serial.print(F("I0.11 Pression eau  : RAW=")); Serial.print(rawPressure);
-  Serial.print(F("  V=")); Serial.print(vPressure, 3);
-  Serial.print(F("  P=")); Serial.print(pWaterBar, 2);
-  Serial.println(F(" bar"));
+  out.print(F("I0.11 Pression eau  : RAW=")); out.print(rawPressure);
+  out.print(F("  V=")); out.print(vPressure, 3);
+  out.print(F("  P=")); out.print(pWaterBar, 2);
+  out.println(F(" bar"));
 
-  Serial.print(F("I0.12 Depression    : RAW=")); Serial.print(rawDep);
-  Serial.print(F("  V=")); Serial.print(vDep, 3);
-  Serial.print(F("  dRAW=")); Serial.print(dep_dRaw);
-  Serial.print(F("  dV=")); Serial.print(dep_dV, 3);
-  Serial.print(F("  ~dP=")); Serial.print(dep_dMbar, 1);
-  Serial.println(F(" mbar (indicatif)"));
+  out.print(F("I0.12 Depression    : RAW=")); out.print(rawDep);
+  out.print(F("  V=")); out.print(vDep, 3);
+  out.print(F("  dRAW=")); out.print(dep_dRaw);
+  out.print(F("  dV=")); out.print(dep_dV, 3);
+  out.print(F("  ~dP=")); out.print(dep_dMbar, 1);
+  out.println(F(" mbar (indicatif)"));
 
-  Serial.print(F("MAX6675 fumées      : "));
-  if (isnan(lastTempFumeesC)) Serial.println(F("NaN"));
-  else { Serial.print(lastTempFumeesC, 2); Serial.println(F(" °C")); }
+  out.print(F("MAX6675 fumées      : "));
+  if (isnan(lastTempFumeesC)) out.println(F("NaN"));
+  else { out.print(lastTempFumeesC, 2); out.println(F(" °C")); }
 
-  Serial.print(F("R1.1 Vis sans fin   : ")); Serial.println(statePellet ? F("ON") : F("OFF"));
-  Serial.print(F("R1.2 Pompe          : ")); Serial.println(statePump ? F("ON") : F("OFF"));
-  Serial.print(F("R1.4 Candelette     : ")); Serial.println(stateCandle ? F("ON") : F("OFF"));
-  Serial.print(F("A1.0 Ventilateur    : ")); Serial.print(fanVoltageV, 1);
-  Serial.print(F(" V (PWM=")); Serial.print(fanPwm); Serial.println(F(")"));
+  out.print(F("R1.1 Vis sans fin   : ")); out.println(statePellet ? F("ON") : F("OFF"));
+  out.print(F("R1.2 Pompe          : ")); out.println(statePump ? F("ON") : F("OFF"));
+  out.print(F("R1.4 Candelette     : ")); out.println(stateCandle ? F("ON") : F("OFF"));
+  out.print(F("A1.0 Ventilateur    : ")); out.print(fanVoltageV, 1);
+  out.print(F(" V (PWM=")); out.print(fanPwm); out.println(F(")"));
 
-  Serial.print(F("Etat chaudiere      : "));
-  if (boilerOn) Serial.println(F("RUN"));
-  else if (stopCooldownActive) Serial.println(F("COOLDOWN"));
-  else Serial.println(F("IDLE"));
+  out.print(F("Etat chaudiere      : "));
+  if (boilerOn) out.println(F("RUN"));
+  else if (stopCooldownActive) out.println(F("COOLDOWN"));
+  else out.println(F("IDLE"));
 
   if (alarmActive) {
-    Serial.print(F("ALARM              : "));
-    Serial.println(alarmText);
+    out.print(F("ALARM              : "));
+    out.println(alarmText);
   }
 
-  Serial.println(F("============================"));
+  out.println(F("============================"));
 }
 
 // Format compact pour écran Nextion (1 frame / seconde)
@@ -1195,17 +1198,17 @@ void nextionSendSnapshot() {
   nextionWriteTerminator();
 }
 
-bool validatePowerParams(bool printErr) {
+bool validatePowerParams(bool printErr, Stream& out) {
   if (pelletCyclePeriodMs < 1000UL || pelletCyclePeriodMs > 60000UL) {
-    if (printErr) Serial.println(F("ERR: PP range 1000..60000"));
+    if (printErr) out.println(F("ERR: PP range 1000..60000"));
     return false;
   }
   if (pelletOnDurationMs < 50UL || pelletOnDurationMs > 5000UL) {
-    if (printErr) Serial.println(F("ERR: PON range 50..5000"));
+    if (printErr) out.println(F("ERR: PON range 50..5000"));
     return false;
   }
   if (pelletOnDurationMs >= pelletCyclePeriodMs) {
-    if (printErr) Serial.println(F("ERR: need PON < PP"));
+    if (printErr) out.println(F("ERR: need PON < PP"));
     return false;
   }
   if (runFanVoltageV < 0.0f) runFanVoltageV = 0.0f;
@@ -1213,37 +1216,37 @@ bool validatePowerParams(bool printErr) {
   return true;
 }
 
-void printHelp() {
-  Serial.println(F("=== Commandes serie M-Duino ==="));
-  Serial.println(F("h         : aide"));
-  Serial.println(F("r         : snapshot immediat"));
-  Serial.println(F("s0 / s1   : auto snapshot OFF/ON"));
-  Serial.println(F("w0 / w1   : vis sans fin OFF/ON [manuel IDLE]"));
-  Serial.println(F("p0 / p1   : pompe OFF/ON [manuel IDLE]"));
-  Serial.println(F("c0 / c1   : candelette OFF/ON [manuel IDLE]"));
-  Serial.println(F("fN        : ventilateur N volts (0..10) [manuel IDLE] ex f5.5"));
-  Serial.println(F("b1        : START chaudiere basique (MANUAL uniquement)"));
-  Serial.println(F("b0        : STOP chaudiere basique (MANUAL uniquement)"));
-  Serial.println(F("a0        : acquitter/effacer ALARM"));
-  Serial.println(F("i0        : FORCER IDLE"));
-  Serial.println(F("k1 / k0   : FORCER COOLDOWN ON/OFF (manuel + auto)"));
-  Serial.println(F("COOLDOWN ON|OFF : idem k1/k0"));
-  Serial.println(F("--- RTC / Planning ---"));
-  Serial.println(F("TIME"));
-  Serial.println(F("SETTIME YYYY-MM-DD HH:MM:SS"));
-  Serial.println(F("MODE OFF|MANUAL|AUTO"));
-  Serial.println(F("LISTSCHED"));
-  Serial.println(F("SETDAY D HH:MM HH:MM HH:MM HH:MM"));
-  Serial.println(F("DEFAULTSCHED"));
-  Serial.println(F("SAVE"));
-  Serial.println(F("--- Puissance ---"));
-  Serial.println(F("POWER LOW|MED|HIGH   (charge le profil + sauvegarde)"));
-  Serial.println(F("PARAMS"));
-  Serial.println(F("PP <ms>   (1000..60000)"));
-  Serial.println(F("PON <ms>  (50..5000, PON<PP)"));
-  Serial.println(F("FV <V>    (0..10)"));
-  Serial.println(F("DEFAULTPARAMS"));
-  Serial.println(F("================================"));
+void printHelp(Stream& out) {
+  out.println(F("=== Commandes serie M-Duino ==="));
+  out.println(F("h         : aide"));
+  out.println(F("r         : snapshot immediat"));
+  out.println(F("s0 / s1   : auto snapshot OFF/ON"));
+  out.println(F("w0 / w1   : vis sans fin OFF/ON [manuel IDLE]"));
+  out.println(F("p0 / p1   : pompe OFF/ON [manuel IDLE]"));
+  out.println(F("c0 / c1   : candelette OFF/ON [manuel IDLE]"));
+  out.println(F("fN        : ventilateur N volts (0..10) [manuel IDLE] ex f5.5"));
+  out.println(F("b1        : START chaudiere basique (MANUAL uniquement)"));
+  out.println(F("b0        : STOP chaudiere basique (MANUAL uniquement)"));
+  out.println(F("a0        : acquitter/effacer ALARM"));
+  out.println(F("i0        : FORCER IDLE"));
+  out.println(F("k1 / k0   : FORCER COOLDOWN ON/OFF (manuel + auto)"));
+  out.println(F("COOLDOWN ON|OFF : idem k1/k0"));
+  out.println(F("--- RTC / Planning ---"));
+  out.println(F("TIME"));
+  out.println(F("SETTIME YYYY-MM-DD HH:MM:SS"));
+  out.println(F("MODE OFF|MANUAL|AUTO"));
+  out.println(F("LISTSCHED"));
+  out.println(F("SETDAY D HH:MM HH:MM HH:MM HH:MM"));
+  out.println(F("DEFAULTSCHED"));
+  out.println(F("SAVE"));
+  out.println(F("--- Puissance ---"));
+  out.println(F("POWER LOW|MED|HIGH   (charge le profil + sauvegarde)"));
+  out.println(F("PARAMS"));
+  out.println(F("PP <ms>   (1000..60000)"));
+  out.println(F("PON <ms>  (50..5000, PON<PP)"));
+  out.println(F("FV <V>    (0..10)"));
+  out.println(F("DEFAULTPARAMS"));
+  out.println(F("================================"));
 }
 
 // --------------------------------------------------------------------
@@ -1272,58 +1275,58 @@ static int parseHHMM_toMin(const String& hhmm) {
   return hh * 60 + mm;
 }
 
-void handleCommand(const String &lineIn) {
+void handleCommand(const String &lineIn, Stream& out) {
   String line = lineIn;
   line.trim();
   if (line.length() == 0) return;
 
   unsigned long now = millis();
 
-  if (startsWithNoCase(line, "TIME")) { printTimeLine(); return; }
+  if (startsWithNoCase(line, "TIME")) { printTimeLine(out); return; }
 
   if (startsWithNoCase(line, "COOLDOWN")) {
     int sp = line.indexOf(' ');
-    if (sp < 0) { Serial.println(F("ERR: COOLDOWN ON|OFF")); return; }
+    if (sp < 0) { out.println(F("ERR: COOLDOWN ON|OFF")); return; }
     String v = line.substring(sp + 1); v.trim(); v.toUpperCase();
     if (v == "ON" || v == "1") forceCooldownOn(now);
     else if (v == "OFF" || v == "0") forceCooldownOff();
-    else Serial.println(F("ERR: COOLDOWN ON|OFF"));
+    else out.println(F("ERR: COOLDOWN ON|OFF"));
     return;
   }
 
   if (startsWithNoCase(line, "POWER")) {
     int sp = line.indexOf(' ');
-    if (sp < 0) { Serial.println(F("ERR: POWER LOW|MED|HIGH")); return; }
+    if (sp < 0) { out.println(F("ERR: POWER LOW|MED|HIGH")); return; }
     String v = line.substring(sp + 1); v.trim(); v.toUpperCase();
     PowerLevel lvl = powerLevel;
     if (v == "LOW") lvl = PWR_LOW;
     else if (v == "MED" || v == "MEDIUM") lvl = PWR_MED;
     else if (v == "HIGH") lvl = PWR_HIGH;
-    else { Serial.println(F("ERR: POWER LOW|MED|HIGH")); return; }
+    else { out.println(F("ERR: POWER LOW|MED|HIGH")); return; }
 
     applyPowerProfile(lvl);
-    if (!validatePowerParams(true)) return;
+    if (!validatePowerParams(true, out)) return;
     eepromSaveAll();
 
-    Serial.print(F("OK: POWER -> "));
-    Serial.println(pwrToStr(powerLevel));
-    printParams();
+    out.print(F("OK: POWER -> "));
+    out.println(pwrToStr(powerLevel));
+    printParams(out);
     return;
   }
 
   if (startsWithNoCase(line, "SETTIME")) {
     int sp = line.indexOf(' ');
-    if (sp < 0) { Serial.println(F("ERR: SETTIME format.")); return; }
+    if (sp < 0) { out.println(F("ERR: SETTIME format.")); return; }
     String rest = line.substring(sp + 1); rest.trim();
     int sp2 = rest.indexOf(' ');
-    if (sp2 < 0) { Serial.println(F("ERR: SETTIME format.")); return; }
+    if (sp2 < 0) { out.println(F("ERR: SETTIME format.")); return; }
 
     String d = rest.substring(0, sp2);
     String t = rest.substring(sp2 + 1);
 
     int d1 = d.indexOf('-'), d2 = d.lastIndexOf('-');
     int t1 = t.indexOf(':'), t2 = t.lastIndexOf(':');
-    if (d1 < 0 || d2 <= d1 || t1 < 0 || t2 <= t1) { Serial.println(F("ERR: SETTIME format.")); return; }
+    if (d1 < 0 || d2 <= d1 || t1 < 0 || t2 <= t1) { out.println(F("ERR: SETTIME format.")); return; }
 
     int Y  = d.substring(0, d1).toInt();
     int M  = d.substring(d1 + 1, d2).toInt();
@@ -1340,23 +1343,23 @@ void handleCommand(const String &lineIn) {
     RTC.setMinute(mm);
     RTC.setSecond(ss);
 
-    if (!RTC.write()) Serial.println(F("ERR: RTC.write failed (check switches RTC SCL/SDA)."));
-    else { Serial.println(F("OK: RTC updated.")); printTimeLine(); }
+    if (!RTC.write()) out.println(F("ERR: RTC.write failed (check switches RTC SCL/SDA)."));
+    else { out.println(F("OK: RTC updated.")); printTimeLine(out); }
     return;
   }
 
   if (startsWithNoCase(line, "MODE")) {
     int sp = line.indexOf(' ');
-    if (sp < 0) { Serial.println(F("ERR: MODE OFF|MANUAL|AUTO")); return; }
+    if (sp < 0) { out.println(F("ERR: MODE OFF|MANUAL|AUTO")); return; }
     String m = line.substring(sp + 1); m.trim(); m.toUpperCase();
 
     if (m == "OFF") controlMode = MODE_OFF;
     else if (m == "MANUAL") controlMode = MODE_MANUAL;
     else if (m == "AUTO") controlMode = MODE_AUTO;
-    else { Serial.println(F("ERR: MODE OFF|MANUAL|AUTO")); return; }
+    else { out.println(F("ERR: MODE OFF|MANUAL|AUTO")); return; }
 
     eepromSaveAll();
-    Serial.print(F("MODE -> ")); Serial.println(modeToStr(controlMode));
+    out.print(F("MODE -> ")); out.println(modeToStr(controlMode));
 
     if (controlMode == MODE_OFF) {
       if (boilerOn && !stopCooldownActive) boilerBasicStop(now);
@@ -1364,26 +1367,26 @@ void handleCommand(const String &lineIn) {
     return;
   }
 
-  if (startsWithNoCase(line, "LISTSCHED")) { printSchedule(); return; }
+  if (startsWithNoCase(line, "LISTSCHED")) { printSchedule(out); return; }
 
   if (startsWithNoCase(line, "DEFAULTSCHED")) {
     setDefaultSchedule();
     eepromSaveAll();
-    Serial.println(F("OK: default schedule applied + saved."));
-    printSchedule();
+    out.println(F("OK: default schedule applied + saved."));
+    printSchedule(out);
     return;
   }
 
   if (startsWithNoCase(line, "SAVE")) {
-    if (!validatePowerParams(true)) return;
+    if (!validatePowerParams(true, out)) return;
     eepromSaveAll();
-    Serial.println(F("OK: EEPROM saved (mode+sched+params)."));
+    out.println(F("OK: EEPROM saved (mode+sched+params)."));
     return;
   }
 
   if (startsWithNoCase(line, "SETDAY")) {
     int p1 = line.indexOf(' ');
-    if (p1 < 0) { Serial.println(F("ERR: SETDAY D HH:MM HH:MM HH:MM HH:MM")); return; }
+    if (p1 < 0) { out.println(F("ERR: SETDAY D HH:MM HH:MM HH:MM HH:MM")); return; }
     String rest = line.substring(p1 + 1); rest.trim();
 
     String tok[5];
@@ -1395,16 +1398,16 @@ void handleCommand(const String &lineIn) {
       rest = rest.substring(sp + 1);
       rest.trim();
     }
-    if (ti != 5) { Serial.println(F("ERR: SETDAY D HH:MM HH:MM HH:MM HH:MM")); return; }
+    if (ti != 5) { out.println(F("ERR: SETDAY D HH:MM HH:MM HH:MM HH:MM")); return; }
 
     int D = tok[0].toInt();
-    if (D < 1 || D > 7) { Serial.println(F("ERR: D must be 1..7 (Mon..Sun).")); return; }
+    if (D < 1 || D > 7) { out.println(F("ERR: D must be 1..7 (Mon..Sun).")); return; }
 
     int s1 = parseHHMM_toMin(tok[1]);
     int e1 = parseHHMM_toMin(tok[2]);
     int s2 = parseHHMM_toMin(tok[3]);
     int e2 = parseHHMM_toMin(tok[4]);
-    if (s1 < 0 || e1 < 0 || s2 < 0 || e2 < 0) { Serial.println(F("ERR: bad HH:MM.")); return; }
+    if (s1 < 0 || e1 < 0 || s2 < 0 || e2 < 0) { out.println(F("ERR: bad HH:MM.")); return; }
 
     weekSched[D - 1].start1 = (uint16_t)s1;
     weekSched[D - 1].end1   = (uint16_t)e1;
@@ -1412,62 +1415,62 @@ void handleCommand(const String &lineIn) {
     weekSched[D - 1].end2   = (uint16_t)e2;
 
     eepromSaveAll();
-    Serial.println(F("OK: day schedule updated + saved."));
+    out.println(F("OK: day schedule updated + saved."));
     return;
   }
 
-  if (startsWithNoCase(line, "PARAMS")) { printParams(); return; }
+  if (startsWithNoCase(line, "PARAMS")) { printParams(out); return; }
 
   if (startsWithNoCase(line, "DEFAULTPARAMS")) {
     setDefaultParams();
     eepromSaveAll();
-    Serial.println(F("OK: default power params applied + saved."));
-    printParams();
+    out.println(F("OK: default power params applied + saved."));
+    printParams(out);
     return;
   }
 
   if (startsWithNoCase(line, "PP")) {
     int sp = line.indexOf(' ');
-    if (sp < 0) { Serial.println(F("ERR: PP <ms>")); return; }
+    if (sp < 0) { out.println(F("ERR: PP <ms>")); return; }
     long v = line.substring(sp + 1).toInt();
-    if (v < 1000 || v > 60000) { Serial.println(F("ERR: PP range 1000..60000")); return; }
+    if (v < 1000 || v > 60000) { out.println(F("ERR: PP range 1000..60000")); return; }
     pelletCyclePeriodMs = (unsigned long)v;
-    if (!validatePowerParams(true)) return;
-    Serial.println(F("OK"));
+    if (!validatePowerParams(true, out)) return;
+    out.println(F("OK"));
     return;
   }
 
   if (startsWithNoCase(line, "PON")) {
     int sp = line.indexOf(' ');
-    if (sp < 0) { Serial.println(F("ERR: PON <ms>")); return; }
+    if (sp < 0) { out.println(F("ERR: PON <ms>")); return; }
     long v = line.substring(sp + 1).toInt();
-    if (v < 50 || v > 5000) { Serial.println(F("ERR: PON range 50..5000")); return; }
+    if (v < 50 || v > 5000) { out.println(F("ERR: PON range 50..5000")); return; }
     pelletOnDurationMs = (unsigned long)v;
-    if (!validatePowerParams(true)) return;
-    Serial.println(F("OK"));
+    if (!validatePowerParams(true, out)) return;
+    out.println(F("OK"));
     return;
   }
 
   if (startsWithNoCase(line, "FV")) {
     int sp = line.indexOf(' ');
-    if (sp < 0) { Serial.println(F("ERR: FV <volts>")); return; }
+    if (sp < 0) { out.println(F("ERR: FV <volts>")); return; }
     float v = line.substring(sp + 1).toFloat();
     if (v < 0.0f) v = 0.0f;
     if (v > 10.0f) v = 10.0f;
     runFanVoltageV = v;
-    if (!validatePowerParams(true)) return;
-    Serial.println(F("OK"));
+    if (!validatePowerParams(true, out)) return;
+    out.println(F("OK"));
     return;
   }
 
   char cmd = line.charAt(0);
   switch (cmd) {
-    case 'h': case 'H': printHelp(); break;
+    case 'h': case 'H': printHelp(out); break;
 
     case 'r': case 'R':
       readAllSensorsOnce();
       checkSafeties(now);
-      printSnapshot();
+      printSnapshot(out);
       break;
 
     case 's': case 'S':
@@ -1475,8 +1478,8 @@ void handleCommand(const String &lineIn) {
         char v = line.charAt(1);
         if (v == '0') autoSnapshotEnabled = false;
         else if (v == '1') autoSnapshotEnabled = true;
-        Serial.print(F("Auto snapshot -> "));
-        Serial.println(autoSnapshotEnabled ? F("ON") : F("OFF"));
+        out.print(F("Auto snapshot -> "));
+        out.println(autoSnapshotEnabled ? F("ON") : F("OFF"));
       }
       break;
 
@@ -1492,7 +1495,7 @@ void handleCommand(const String &lineIn) {
       if (line.length() >= 2 && line.charAt(1) == '0') {
         alarmActive = false;
         alarmText[0] = '\0';
-        Serial.println(F("ALARM acquittee."));
+        out.println(F("ALARM acquittee."));
       }
       break;
 
@@ -1501,38 +1504,38 @@ void handleCommand(const String &lineIn) {
       break;
 
     case 'w': case 'W':
-      if (!manualAllowed()) { Serial.println(F("Manuel refuse (RUN/COOLDOWN/ALARM).")); break; }
-      if (controlMode == MODE_AUTO) { Serial.println(F("Manuel refuse (MODE=AUTO).")); break; }
+      if (!manualAllowed()) { out.println(F("Manuel refuse (RUN/COOLDOWN/ALARM).")); break; }
+      if (controlMode == MODE_AUTO) { out.println(F("Manuel refuse (MODE=AUTO).")); break; }
       if (line.length() >= 2) {
         statePellet = (line.charAt(1) == '1');
         applyOutputs();
-        Serial.print(F("Vis sans fin -> ")); Serial.println(statePellet ? F("ON") : F("OFF"));
+        out.print(F("Vis sans fin -> ")); out.println(statePellet ? F("ON") : F("OFF"));
       }
       break;
 
     case 'p': case 'P':
-      if (!manualAllowed()) { Serial.println(F("Manuel refuse (RUN/COOLDOWN/ALARM).")); break; }
-      if (controlMode == MODE_AUTO) { Serial.println(F("Manuel refuse (MODE=AUTO).")); break; }
+      if (!manualAllowed()) { out.println(F("Manuel refuse (RUN/COOLDOWN/ALARM).")); break; }
+      if (controlMode == MODE_AUTO) { out.println(F("Manuel refuse (MODE=AUTO).")); break; }
       if (line.length() >= 2) {
         statePump = (line.charAt(1) == '1');
         applyOutputs();
-        Serial.print(F("Pompe -> ")); Serial.println(statePump ? F("ON") : F("OFF"));
+        out.print(F("Pompe -> ")); out.println(statePump ? F("ON") : F("OFF"));
       }
       break;
 
     case 'c': case 'C':
-      if (!manualAllowed()) { Serial.println(F("Manuel refuse (RUN/COOLDOWN/ALARM).")); break; }
-      if (controlMode == MODE_AUTO) { Serial.println(F("Manuel refuse (MODE=AUTO).")); break; }
+      if (!manualAllowed()) { out.println(F("Manuel refuse (RUN/COOLDOWN/ALARM).")); break; }
+      if (controlMode == MODE_AUTO) { out.println(F("Manuel refuse (MODE=AUTO).")); break; }
       if (line.length() >= 2) {
         stateCandle = (line.charAt(1) == '1');
         applyOutputs();
-        Serial.print(F("Candelette -> ")); Serial.println(stateCandle ? F("ON") : F("OFF"));
+        out.print(F("Candelette -> ")); out.println(stateCandle ? F("ON") : F("OFF"));
       }
       break;
 
     case 'f': case 'F':
-      if (!manualAllowed()) { Serial.println(F("Manuel refuse (RUN/COOLDOWN/ALARM).")); break; }
-      if (controlMode == MODE_AUTO) { Serial.println(F("Manuel refuse (MODE=AUTO).")); break; }
+      if (!manualAllowed()) { out.println(F("Manuel refuse (RUN/COOLDOWN/ALARM).")); break; }
+      if (controlMode == MODE_AUTO) { out.println(F("Manuel refuse (MODE=AUTO).")); break; }
       if (line.length() >= 2) {
         float v = line.substring(1).toFloat();
         if (v < 0.0f) v = 0.0f;
@@ -1540,13 +1543,13 @@ void handleCommand(const String &lineIn) {
         fanVoltageV = v;
         fanPwm      = voltsToPwm(fanVoltageV);
         applyOutputs();
-        Serial.print(F("Ventilateur(manuel) -> ")); Serial.print(fanVoltageV, 1); Serial.println(F(" V"));
+        out.print(F("Ventilateur(manuel) -> ")); out.print(fanVoltageV, 1); out.println(F(" V"));
       }
       break;
 
     case 'b': case 'B':
       if (controlMode == MODE_AUTO) {
-        Serial.println(F("b0/b1 refuses (MODE=AUTO). Utiliser MODE MANUAL."));
+        out.println(F("b0/b1 refuses (MODE=AUTO). Utiliser MODE MANUAL."));
         break;
       }
       if (line.length() >= 2) {
@@ -1557,9 +1560,9 @@ void handleCommand(const String &lineIn) {
       break;
 
     default:
-      Serial.print(F("Commande inconnue: "));
-      Serial.println(line);
-      printHelp();
+      out.print(F("Commande inconnue: "));
+      out.println(line);
+      printHelp(out);
       break;
   }
  
@@ -1581,7 +1584,7 @@ static void serviceStream(Stream& io, StreamBuffer& buffer, bool acceptNextionTe
     // Nextion commands are terminated by three 0xFF bytes; accept that framing on Serial1.
     if (acceptNextionTerminator && ((uint8_t)c == 0xFF)) {
       if (++buffer.ffCount >= 3) {
-        handleCommand(buffer.data);
+        handleCommand(buffer.data, io);
         buffer.data = "";
         buffer.ffCount = 0;
       }
@@ -1590,7 +1593,7 @@ static void serviceStream(Stream& io, StreamBuffer& buffer, bool acceptNextionTe
     buffer.ffCount = 0;
 
     if (c == '\n') {
-      handleCommand(buffer.data);
+      handleCommand(buffer.data, io);
       buffer.data = "";
     } else {
       buffer.data += c;
