@@ -1717,7 +1717,7 @@ void setup() {
     eepromSaveAll();
     Serial.println(F("EEPROM: no valid data -> defaults created."));
   } else {
-    if (!validatePowerParams(false)) {
+    if (!validatePowerParams(false, Serial)) {
       setDefaultParams();
       eepromSaveAll();
       Serial.println(F("EEPROM: invalid power params -> reset to defaults."));
