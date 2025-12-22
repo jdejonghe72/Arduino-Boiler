@@ -36,6 +36,60 @@
 #include <RTC.h>
 
 // --------------------------------------------------------------------
+// Dual-serial helper: mirrors all output to both PC Serial and Serial1
+// and merges input streams so commands can arrive from either side.
+// --------------------------------------------------------------------
+HardwareSerial &pcSerial = Serial;
+HardwareSerial &hmiSerial = Serial1;
+
+class DualSerial : public Stream {
+public:
+  DualSerial(HardwareSerial &primary, HardwareSerial &secondary)
+  : _pc(primary), _hmi(secondary) {}
+
+  void begin(unsigned long baud) {
+    _pc.begin(baud);
+    _hmi.begin(baud);
+  }
+
+  virtual int available() override {
+    return _pc.available() + _hmi.available();
+  }
+
+  virtual int read() override {
+    if (_pc.available()) return _pc.read();
+    return _hmi.available() ? _hmi.read() : -1;
+  }
+
+  virtual int peek() override {
+    if (_pc.available()) return _pc.peek();
+    return _hmi.available() ? _hmi.peek() : -1;
+  }
+
+  virtual void flush() override {
+    _pc.flush();
+    _hmi.flush();
+  }
+
+  operator bool() { return (bool)_pc; }
+
+  virtual size_t write(uint8_t b) override {
+    size_t n1 = _pc.write(b);
+    size_t n2 = _hmi.write(b);
+    return (n1 == 0) ? n2 : n1;  // best-effort
+  }
+
+  using Print::write;
+
+private:
+  HardwareSerial &_pc;
+  HardwareSerial &_hmi;
+};
+
+DualSerial SerialDual(pcSerial, hmiSerial);
+#define Serial SerialDual
+
+// --------------------------------------------------------------------
 // WATCHDOG enable switch
 // --------------------------------------------------------------------
 #define ENABLE_WDT 1  // 0 = watchdog désactivé, 1 = watchdog activé
