@@ -454,18 +454,18 @@ static void rtcStatsPrint1Hz(unsigned long nowMs) {
   const uint32_t burst_max = g_rtc_burst_max;
   g_rtc_burst_max = 0;
 
-  Serial.print(F("[RTCSTATS] mode="));
-  Serial.print(modeToStr(controlMode));
-  Serial.print(F(" rtc_cps="));
-  Serial.print(rtc_cps);
-  Serial.print(F(" ok/s="));
-  Serial.print(ok_d);
-  Serial.print(F(" fail/s="));
-  Serial.print(fail_d);
-  Serial.print(F(" burst_max="));
-  Serial.print(burst_max);
-  Serial.print(F(" loop_hz="));
-  Serial.println(loop_hz);
+  Serial1.print(F("[RTCSTATS] mode="));
+  Serial1.print(modeToStr(controlMode));
+  Serial1.print(F(" rtc_cps="));
+  Serial1.print(rtc_cps);
+  Serial1.print(F(" ok/s="));
+  Serial1.print(ok_d);
+  Serial1.print(F(" fail/s="));
+  Serial1.print(fail_d);
+  Serial1.print(F(" burst_max="));
+  Serial1.print(burst_max);
+  Serial1.print(F(" loop_hz="));
+  Serial1.println(loop_hz);
 }
 
 // --------------------------------------------------------------------
@@ -579,18 +579,18 @@ void pelletDebugAndFailsafe(unsigned long nowMs) {
   if (statePellet != lastPelletLogged) {
     lastPelletLogged = statePellet;
 
-    Serial.print(F("[EVT] pellet -> "));
-    Serial.print(statePellet ? F("ON") : F("OFF"));
-    Serial.print(F("  mode="));
-    Serial.print(modeToStr(controlMode));
-    Serial.print(F(" demand="));
-    Serial.print(programDemandOn ? F("ON") : F("OFF"));
-    Serial.print(F(" state="));
-    if (boilerOn) Serial.print(F("RUN"));
-    else if (stopCooldownActive) Serial.print(F("COOLDOWN"));
-    else Serial.print(F("IDLE"));
-    Serial.print(F("  ms="));
-    Serial.println(nowMs);
+    Serial1.print(F("[EVT] pellet -> "));
+    Serial1.print(statePellet ? F("ON") : F("OFF"));
+    Serial1.print(F("  mode="));
+    Serial1.print(modeToStr(controlMode));
+    Serial1.print(F(" demand="));
+    Serial1.print(programDemandOn ? F("ON") : F("OFF"));
+    Serial1.print(F(" state="));
+    if (boilerOn) Serial1.print(F("RUN"));
+    else if (stopCooldownActive) Serial1.print(F("COOLDOWN"));
+    else Serial1.print(F("IDLE"));
+    Serial1.print(F("  ms="));
+    Serial1.println(nowMs);
 
     if (statePellet) pelletOnSinceMs = nowMs;
   }
@@ -600,9 +600,9 @@ void pelletDebugAndFailsafe(unsigned long nowMs) {
     if (onMs > pelletLongestOnMs) pelletLongestOnMs = onMs;
 
     if (PELLET_MAX_CONTINUOUS_ON_MS > 0 && onMs > PELLET_MAX_CONTINUOUS_ON_MS) {
-      Serial.print(F("!!! FAILSAFE: pellet ON too long ("));
-      Serial.print(onMs);
-      Serial.println(F(" ms) -> FORCE OFF"));
+      Serial1.print(F("!!! FAILSAFE: pellet ON too long ("));
+      Serial1.print(onMs);
+      Serial1.println(F(" ms) -> FORCE OFF"));
 
       statePellet = false;
       applyOutputs();
@@ -628,8 +628,8 @@ void triggerAlarmAndCooldown(const char* msg, unsigned long now) {
   strncpy(alarmText, msg, sizeof(alarmText) - 1);
   alarmText[sizeof(alarmText) - 1] = '\0';
 
-  Serial.print(F("!!! ALARM: "));
-  Serial.println(alarmText);
+  Serial1.print(F("!!! ALARM: "));
+  Serial1.println(alarmText);
 
   if (!stopCooldownActive) forceCooldown(now);
 }
@@ -637,10 +637,10 @@ void triggerAlarmAndCooldown(const char* msg, unsigned long now) {
 void diagPrint(unsigned long now, const __FlashStringHelper* label, const char* detail) {
   if (now - lastDiagMs < DIAG_PERIOD_MS) return;
   lastDiagMs = now;
-  Serial.print(F("[DIAG] "));
-  Serial.print(label);
-  if (detail && detail[0]) { Serial.print(F(" : ")); Serial.print(detail); }
-  Serial.println();
+  Serial1.print(F("[DIAG] "));
+  Serial1.print(label);
+  if (detail && detail[0]) { Serial1.print(F(" : ")); Serial1.print(detail); }
+  Serial1.println();
 }
 
 void checkSafeties(unsigned long now) {
@@ -729,7 +729,7 @@ void autoControlService(unsigned long nowMs) {
       statePump   = false;
 
       applyOutputs();
-      Serial.println(F("START chaudiere basique (AUTO)."));
+      Serial1.println(F("START chaudiere basique (AUTO)."));
 
       lastAutoCommandMs = nowMs;
     }
@@ -742,7 +742,7 @@ void autoControlService(unsigned long nowMs) {
       statePellet = false;
       stateCandle = false;
       applyOutputs();
-      Serial.println(F("STOP chaudiere basique (AUTO): cooldown."));
+      Serial1.println(F("STOP chaudiere basique (AUTO): cooldown."));
 
       lastAutoCommandMs = nowMs;
     }
@@ -754,16 +754,16 @@ void autoControlService(unsigned long nowMs) {
 // --------------------------------------------------------------------
 void boilerBasicStart(unsigned long now) {
   if (alarmActive) {
-    Serial.print(F("START refuse: ALARM active (a0 ou i0). Cause="));
-    Serial.println(alarmText);
+    Serial1.print(F("START refuse: ALARM active (a0 ou i0). Cause="));
+    Serial1.println(alarmText);
     return;
   }
   if (forceCooldownActive) {
-    Serial.println(F("START refuse: FORCE COOLDOWN actif (K0 pour relacher)."));
+    Serial1.println(F("START refuse: FORCE COOLDOWN actif (K0 pour relacher)."));
     return;
   }
   if (boilerOn || stopCooldownActive) {
-    Serial.println(F("START refuse: deja RUN ou COOLDOWN."));
+    Serial1.println(F("START refuse: deja RUN ou COOLDOWN."));
     return;
   }
 
@@ -778,16 +778,16 @@ void boilerBasicStart(unsigned long now) {
   statePump   = false;
 
   applyOutputs();
-  Serial.println(F("START chaudiere basique."));
+  Serial1.println(F("START chaudiere basique."));
 }
 
 void boilerBasicStop(unsigned long now) {
   if (!boilerOn && !stopCooldownActive) {
-    Serial.println(F("STOP: deja arretee."));
+    Serial1.println(F("STOP: deja arretee."));
     return;
   }
   if (stopCooldownActive) {
-    Serial.println(F("STOP: cooldown deja en cours."));
+    Serial1.println(F("STOP: cooldown deja en cours."));
     return;
   }
 
@@ -799,7 +799,7 @@ void boilerBasicStop(unsigned long now) {
   stateCandle = false;
 
   applyOutputs();
-  Serial.println(F("STOP: debut cooldown 10 min."));
+  Serial1.println(F("STOP: debut cooldown 10 min."));
 }
 
 void boilerBasicService(unsigned long now) {
@@ -841,7 +841,7 @@ void boilerBasicService(unsigned long now) {
 
       lastStartMs = 0;
 
-      Serial.println(F("Cooldown termine: IDLE, sorties OFF."));
+      Serial1.println(F("Cooldown termine: IDLE, sorties OFF."));
     }
 
     applyOutputs();
@@ -880,7 +880,7 @@ void forceIdle(unsigned long now) {
   pelletOnSinceMs = 0;
   pelletLongestOnMs = 0;
 
-  Serial.println(F("FORCE IDLE: sorties OFF, cooldown annule, alarmes effacees."));
+  Serial1.println(F("FORCE IDLE: sorties OFF, cooldown annule, alarmes effacees."));
 }
 
 // --------------------------------------------------------------------
@@ -889,12 +889,12 @@ void forceIdle(unsigned long now) {
 void forceCooldownOn(unsigned long now) {
   forceCooldownActive = true;
   forceCooldown(now);
-  Serial.println(F("FORCE COOLDOWN: actif (bloque AUTO start)."));
+  Serial1.println(F("FORCE COOLDOWN: actif (bloque AUTO start)."));
 }
 
 void forceCooldownOff() {
   forceCooldownActive = false;
-  Serial.println(F("FORCE COOLDOWN: relache. (cooldown normal peut continuer si en cours)"));
+  Serial1.println(F("FORCE COOLDOWN: relache. (cooldown normal peut continuer si en cours)"));
 }
 
 // --------------------------------------------------------------------
@@ -914,68 +914,68 @@ void logAutoEventIfChanged(unsigned long nowMs) {
 
   if (rtcOk != lastRtcOkLogged) {
     lastRtcOkLogged = rtcOk;
-    Serial.print(F("[EVT] rtcOk -> "));
-    Serial.println(rtcOk ? F("1") : F("0"));
+    Serial1.print(F("[EVT] rtcOk -> "));
+    Serial1.println(rtcOk ? F("1") : F("0"));
     if (rtcOk) {
-      Serial.print(F("[EVT] DOW=")); Serial.print(dow);
-      Serial.print(F(" MOD=")); Serial.println(mod);
+      Serial1.print(F("[EVT] DOW=")); Serial1.print(dow);
+      Serial1.print(F(" MOD=")); Serial1.println(mod);
     }
   }
 
   if (programDemandOn != lastDemandLogged) {
     lastDemandLogged = programDemandOn;
-    Serial.print(F("[EVT] demand -> "));
-    Serial.print(programDemandOn ? F("ON") : F("OFF"));
-    Serial.print(F("  rtcOk=")); Serial.print(rtcOk ? 1 : 0);
+    Serial1.print(F("[EVT] demand -> "));
+    Serial1.print(programDemandOn ? F("ON") : F("OFF"));
+    Serial1.print(F("  rtcOk=")); Serial1.print(rtcOk ? 1 : 0);
     if (rtcOk) {
-      Serial.print(F(" DOW=")); Serial.print(dow);
-      Serial.print(F(" MOD=")); Serial.print(mod);
+      Serial1.print(F(" DOW=")); Serial1.print(dow);
+      Serial1.print(F(" MOD=")); Serial1.print(mod);
     }
-    if (forceCooldownActive) Serial.print(F("  FORCE_COOLDOWN=1"));
-    Serial.println();
+    if (forceCooldownActive) Serial1.print(F("  FORCE_COOLDOWN=1"));
+    Serial1.println();
   }
 
   if (boilerOn != lastBoilerOnLogged || stopCooldownActive != lastCooldownLogged) {
     lastBoilerOnLogged = boilerOn;
     lastCooldownLogged = stopCooldownActive;
 
-    Serial.print(F("[EVT] state -> "));
-    if (boilerOn) Serial.print(F("RUN"));
-    else if (stopCooldownActive) Serial.print(F("COOLDOWN"));
-    else Serial.print(F("IDLE"));
+    Serial1.print(F("[EVT] state -> "));
+    if (boilerOn) Serial1.print(F("RUN"));
+    else if (stopCooldownActive) Serial1.print(F("COOLDOWN"));
+    else Serial1.print(F("IDLE"));
 
-    Serial.print(F("  rtcOk=")); Serial.print(rtcOk ? 1 : 0);
+    Serial1.print(F("  rtcOk=")); Serial1.print(rtcOk ? 1 : 0);
     if (rtcOk) {
-      Serial.print(F(" DOW=")); Serial.print(dow);
-      Serial.print(F(" MOD=")); Serial.print(mod);
+      Serial1.print(F(" DOW=")); Serial1.print(dow);
+      Serial1.print(F(" MOD=")); Serial1.print(mod);
     }
-    if (forceCooldownActive) Serial.print(F("  FORCE_COOLDOWN=1"));
-    Serial.println();
+    if (forceCooldownActive) Serial1.print(F("  FORCE_COOLDOWN=1"));
+    Serial1.println();
 
-    Serial.print(F("[EVT] since lastAutoCommandMs = "));
-    Serial.print((unsigned long)(millis() - lastAutoCommandMs));
-    Serial.println(F(" ms"));
+    Serial1.print(F("[EVT] since lastAutoCommandMs = "));
+    Serial1.print((unsigned long)(millis() - lastAutoCommandMs));
+    Serial1.println(F(" ms"));
   }
 }
 
 // --------------------------------------------------------------------
 // Affichages / help
 // --------------------------------------------------------------------
-static void print2d(int v) { if (v < 10) Serial.print('0'); Serial.print(v); }
+static void print2d(int v) { if (v < 10) Serial1.print('0'); Serial1.print(v); }
 
 void printTimeLine() {
   if (!rtcReadOk()) {
-    Serial.println(F("RTC: read error (check switches RTC SCL/SDA + SETTIME)."));
+    Serial1.println(F("RTC: read error (check switches RTC SCL/SDA + SETTIME)."));
     return;
   }
-  Serial.print(F("RTC: "));
-  Serial.print(RTC.getYear()); Serial.print('-');
-  print2d(RTC.getMonth()); Serial.print('-');
-  print2d(RTC.getMonthDay()); Serial.print(' ');
-  print2d(RTC.getHour()); Serial.print(':');
-  print2d(RTC.getMinute()); Serial.print(':');
+  Serial1.print(F("RTC: "));
+  Serial1.print(RTC.getYear()); Serial1.print('-');
+  print2d(RTC.getMonth()); Serial1.print('-');
+  print2d(RTC.getMonthDay()); Serial1.print(' ');
+  print2d(RTC.getHour()); Serial1.print(':');
+  print2d(RTC.getMinute()); Serial1.print(':');
   print2d(RTC.getSecond());
-  Serial.print(F("  DOW=")); Serial.println(dowFromRTC());
+  Serial1.print(F("  DOW=")); Serial1.println(dowFromRTC());
 }
 
 const __FlashStringHelper* modeToStr(ControlMode m) {
@@ -997,27 +997,27 @@ const __FlashStringHelper* pwrToStr(PowerLevel p) {
 }
 
 void printParams() {
-  Serial.println(F("=== PARAMS (power) ==="));
-  Serial.print(F("LEVEL = ")); Serial.println(pwrToStr(powerLevel));
-  Serial.print(F("PP  = ")); Serial.print(pelletCyclePeriodMs); Serial.println(F(" ms"));
-  Serial.print(F("PON = ")); Serial.print(pelletOnDurationMs);  Serial.println(F(" ms"));
-  Serial.print(F("FV  = ")); Serial.print(runFanVoltageV, 1);   Serial.println(F(" V"));
-  Serial.println(F("======================"));
+  Serial1.println(F("=== PARAMS (power) ==="));
+  Serial1.print(F("LEVEL = ")); Serial1.println(pwrToStr(powerLevel));
+  Serial1.print(F("PP  = ")); Serial1.print(pelletCyclePeriodMs); Serial1.println(F(" ms"));
+  Serial1.print(F("PON = ")); Serial1.print(pelletOnDurationMs);  Serial1.println(F(" ms"));
+  Serial1.print(F("FV  = ")); Serial1.print(runFanVoltageV, 1);   Serial1.println(F(" V"));
+  Serial1.println(F("======================"));
 }
 
 void printSchedule() {
   static const char* dn[7] = {"Lun","Mar","Mer","Jeu","Ven","Sam","Dim"};
   for (int d = 0; d < 7; d++) {
     DaySchedule &ds = weekSched[d];
-    Serial.print(dn[d]); Serial.print(F(" : "));
-    Serial.print(ds.start1/60); Serial.print(':'); print2d(ds.start1%60);
-    Serial.print(F("-"));
-    Serial.print(ds.end1/60); Serial.print(':'); print2d(ds.end1%60);
-    Serial.print(F("   "));
-    Serial.print(ds.start2/60); Serial.print(':'); print2d(ds.start2%60);
-    Serial.print(F("-"));
-    Serial.print(ds.end2/60); Serial.print(':'); print2d(ds.end2%60);
-    Serial.println();
+    Serial1.print(dn[d]); Serial1.print(F(" : "));
+    Serial1.print(ds.start1/60); Serial1.print(':'); print2d(ds.start1%60);
+    Serial1.print(F("-"));
+    Serial1.print(ds.end1/60); Serial1.print(':'); print2d(ds.end1%60);
+    Serial1.print(F("   "));
+    Serial1.print(ds.start2/60); Serial1.print(':'); print2d(ds.start2%60);
+    Serial1.print(F("-"));
+    Serial1.print(ds.end2/60); Serial1.print(':'); print2d(ds.end2%60);
+    Serial1.println();
   }
 }
 
@@ -1037,87 +1037,87 @@ void printSnapshot() {
   float dep_dV    = depressionDeltaVolts(rawDep);
   float dep_dMbar = 10.0f * dep_dV;
 
-  Serial.println(F("===== SNAPSHOT M-Duino ====="));
+  Serial1.println(F("===== SNAPSHOT M-Duino ====="));
   printTimeLine();
 
-  Serial.print(F("MODE: "));
-  Serial.print(modeToStr(controlMode));
-  Serial.print(F("  programDemand="));
-  Serial.print(programDemandOn ? F("ON") : F("OFF"));
-  Serial.print(F("  forceCooldown="));
-  Serial.println(forceCooldownActive ? F("ON") : F("OFF"));
+  Serial1.print(F("MODE: "));
+  Serial1.print(modeToStr(controlMode));
+  Serial1.print(F("  programDemand="));
+  Serial1.print(programDemandOn ? F("ON") : F("OFF"));
+  Serial1.print(F("  forceCooldown="));
+  Serial1.println(forceCooldownActive ? F("ON") : F("OFF"));
 
-  Serial.print(F("Power: LEVEL=")); Serial.print(pwrToStr(powerLevel));
-  Serial.print(F(" PP=")); Serial.print(pelletCyclePeriodMs);
-  Serial.print(F(" PON="));      Serial.print(pelletOnDurationMs);
-  Serial.print(F(" FV="));       Serial.print(runFanVoltageV, 1);
-  Serial.println();
+  Serial1.print(F("Power: LEVEL=")); Serial1.print(pwrToStr(powerLevel));
+  Serial1.print(F(" PP=")); Serial1.print(pelletCyclePeriodMs);
+  Serial1.print(F(" PON="));      Serial1.print(pelletOnDurationMs);
+  Serial1.print(F(" FV="));       Serial1.print(runFanVoltageV, 1);
+  Serial1.println();
 
-  Serial.print(F("Pellet ON longest   : "));
-  Serial.print(pelletLongestOnMs);
-  Serial.println(F(" ms (since boot/forceIdle)"));
+  Serial1.print(F("Pellet ON longest   : "));
+  Serial1.print(pelletLongestOnMs);
+  Serial1.println(F(" ms (since boot/forceIdle)"));
 
-  Serial.print(F("I0.7  No depression : RAW=")); Serial.print(rawNoDep);
-  Serial.print(F("  -> ")); Serial.println(acNoDepPresent ? F("AC PRESENT") : F("AC ABSENT"));
+  Serial1.print(F("I0.7  No depression : RAW=")); Serial1.print(rawNoDep);
+  Serial1.print(F("  -> ")); Serial1.println(acNoDepPresent ? F("AC PRESENT") : F("AC ABSENT"));
 
-  Serial.print(F("I0.8  Pellets OH    : RAW=")); Serial.print(rawPelletsOH);
-  Serial.print(F("  -> ")); Serial.println(acPelletsOHPresent ? F("AC PRESENT") : F("AC ABSENT"));
+  Serial1.print(F("I0.8  Pellets OH    : RAW=")); Serial1.print(rawPelletsOH);
+  Serial1.print(F("  -> ")); Serial1.println(acPelletsOHPresent ? F("AC PRESENT") : F("AC ABSENT"));
 
-  Serial.print(F("I0.9  Water OH      : RAW=")); Serial.print(rawWaterOH);
-  Serial.print(F("  -> ")); Serial.println(acWaterOHPresent ? F("AC PRESENT") : F("AC ABSENT"));
+  Serial1.print(F("I0.9  Water OH      : RAW=")); Serial1.print(rawWaterOH);
+  Serial1.print(F("  -> ")); Serial1.println(acWaterOHPresent ? F("AC PRESENT") : F("AC ABSENT"));
 
-  Serial.print(F("I0.10 NTC eau       : RAW=")); Serial.print(rawNTC);
-  Serial.print(F("  V=")); Serial.print(vNTC, 3);
-  Serial.print(F("  T="));
-  if (isnan(tWaterC)) Serial.println(F("NaN"));
-  else { Serial.print(tWaterC, 1); Serial.println(F(" °C")); }
+  Serial1.print(F("I0.10 NTC eau       : RAW=")); Serial1.print(rawNTC);
+  Serial1.print(F("  V=")); Serial1.print(vNTC, 3);
+  Serial1.print(F("  T="));
+  if (isnan(tWaterC)) Serial1.println(F("NaN"));
+  else { Serial1.print(tWaterC, 1); Serial1.println(F(" °C")); }
 
-  Serial.print(F("I0.11 Pression eau  : RAW=")); Serial.print(rawPressure);
-  Serial.print(F("  V=")); Serial.print(vPressure, 3);
-  Serial.print(F("  P=")); Serial.print(pWaterBar, 2);
-  Serial.println(F(" bar"));
+  Serial1.print(F("I0.11 Pression eau  : RAW=")); Serial1.print(rawPressure);
+  Serial1.print(F("  V=")); Serial1.print(vPressure, 3);
+  Serial1.print(F("  P=")); Serial1.print(pWaterBar, 2);
+  Serial1.println(F(" bar"));
 
-  Serial.print(F("I0.12 Depression    : RAW=")); Serial.print(rawDep);
-  Serial.print(F("  V=")); Serial.print(vDep, 3);
-  Serial.print(F("  dRAW=")); Serial.print(dep_dRaw);
-  Serial.print(F("  dV=")); Serial.print(dep_dV, 3);
-  Serial.print(F("  ~dP=")); Serial.print(dep_dMbar, 1);
-  Serial.println(F(" mbar (indicatif)"));
+  Serial1.print(F("I0.12 Depression    : RAW=")); Serial1.print(rawDep);
+  Serial1.print(F("  V=")); Serial1.print(vDep, 3);
+  Serial1.print(F("  dRAW=")); Serial1.print(dep_dRaw);
+  Serial1.print(F("  dV=")); Serial1.print(dep_dV, 3);
+  Serial1.print(F("  ~dP=")); Serial1.print(dep_dMbar, 1);
+  Serial1.println(F(" mbar (indicatif)"));
 
-  Serial.print(F("MAX6675 fumées      : "));
-  if (isnan(lastTempFumeesC)) Serial.println(F("NaN"));
-  else { Serial.print(lastTempFumeesC, 2); Serial.println(F(" °C")); }
+  Serial1.print(F("MAX6675 fumées      : "));
+  if (isnan(lastTempFumeesC)) Serial1.println(F("NaN"));
+  else { Serial1.print(lastTempFumeesC, 2); Serial1.println(F(" °C")); }
 
-  Serial.print(F("R1.1 Vis sans fin   : ")); Serial.println(statePellet ? F("ON") : F("OFF"));
-  Serial.print(F("R1.2 Pompe          : ")); Serial.println(statePump ? F("ON") : F("OFF"));
-  Serial.print(F("R1.4 Candelette     : ")); Serial.println(stateCandle ? F("ON") : F("OFF"));
-  Serial.print(F("A1.0 Ventilateur    : ")); Serial.print(fanVoltageV, 1);
-  Serial.print(F(" V (PWM=")); Serial.print(fanPwm); Serial.println(F(")"));
+  Serial1.print(F("R1.1 Vis sans fin   : ")); Serial1.println(statePellet ? F("ON") : F("OFF"));
+  Serial1.print(F("R1.2 Pompe          : ")); Serial1.println(statePump ? F("ON") : F("OFF"));
+  Serial1.print(F("R1.4 Candelette     : ")); Serial1.println(stateCandle ? F("ON") : F("OFF"));
+  Serial1.print(F("A1.0 Ventilateur    : ")); Serial1.print(fanVoltageV, 1);
+  Serial1.print(F(" V (PWM=")); Serial1.print(fanPwm); Serial1.println(F(")"));
 
-  Serial.print(F("Etat chaudiere      : "));
-  if (boilerOn) Serial.println(F("RUN"));
-  else if (stopCooldownActive) Serial.println(F("COOLDOWN"));
-  else Serial.println(F("IDLE"));
+  Serial1.print(F("Etat chaudiere      : "));
+  if (boilerOn) Serial1.println(F("RUN"));
+  else if (stopCooldownActive) Serial1.println(F("COOLDOWN"));
+  else Serial1.println(F("IDLE"));
 
   if (alarmActive) {
-    Serial.print(F("ALARM              : "));
-    Serial.println(alarmText);
+    Serial1.print(F("ALARM              : "));
+    Serial1.println(alarmText);
   }
 
-  Serial.println(F("============================"));
+  Serial1.println(F("============================"));
 }
 
 bool validatePowerParams(bool printErr) {
   if (pelletCyclePeriodMs < 1000UL || pelletCyclePeriodMs > 60000UL) {
-    if (printErr) Serial.println(F("ERR: PP range 1000..60000"));
+    if (printErr) Serial1.println(F("ERR: PP range 1000..60000"));
     return false;
   }
   if (pelletOnDurationMs < 50UL || pelletOnDurationMs > 5000UL) {
-    if (printErr) Serial.println(F("ERR: PON range 50..5000"));
+    if (printErr) Serial1.println(F("ERR: PON range 50..5000"));
     return false;
   }
   if (pelletOnDurationMs >= pelletCyclePeriodMs) {
-    if (printErr) Serial.println(F("ERR: need PON < PP"));
+    if (printErr) Serial1.println(F("ERR: need PON < PP"));
     return false;
   }
   if (runFanVoltageV < 0.0f) runFanVoltageV = 0.0f;
@@ -1126,36 +1126,36 @@ bool validatePowerParams(bool printErr) {
 }
 
 void printHelp() {
-  Serial.println(F("=== Commandes serie M-Duino ==="));
-  Serial.println(F("h         : aide"));
-  Serial.println(F("r         : snapshot immediat"));
-  Serial.println(F("s0 / s1   : auto snapshot OFF/ON"));
-  Serial.println(F("w0 / w1   : vis sans fin OFF/ON [manuel IDLE]"));
-  Serial.println(F("p0 / p1   : pompe OFF/ON [manuel IDLE]"));
-  Serial.println(F("c0 / c1   : candelette OFF/ON [manuel IDLE]"));
-  Serial.println(F("fN        : ventilateur N volts (0..10) [manuel IDLE] ex f5.5"));
-  Serial.println(F("b1        : START chaudiere basique (MANUAL uniquement)"));
-  Serial.println(F("b0        : STOP chaudiere basique (MANUAL uniquement)"));
-  Serial.println(F("a0        : acquitter/effacer ALARM"));
-  Serial.println(F("i0        : FORCER IDLE"));
-  Serial.println(F("k1 / k0   : FORCER COOLDOWN ON/OFF (manuel + auto)"));
-  Serial.println(F("COOLDOWN ON|OFF : idem k1/k0"));
-  Serial.println(F("--- RTC / Planning ---"));
-  Serial.println(F("TIME"));
-  Serial.println(F("SETTIME YYYY-MM-DD HH:MM:SS"));
-  Serial.println(F("MODE OFF|MANUAL|AUTO"));
-  Serial.println(F("LISTSCHED"));
-  Serial.println(F("SETDAY D HH:MM HH:MM HH:MM HH:MM"));
-  Serial.println(F("DEFAULTSCHED"));
-  Serial.println(F("SAVE"));
-  Serial.println(F("--- Puissance ---"));
-  Serial.println(F("POWER LOW|MED|HIGH   (charge le profil + sauvegarde)"));
-  Serial.println(F("PARAMS"));
-  Serial.println(F("PP <ms>   (1000..60000)"));
-  Serial.println(F("PON <ms>  (50..5000, PON<PP)"));
-  Serial.println(F("FV <V>    (0..10)"));
-  Serial.println(F("DEFAULTPARAMS"));
-  Serial.println(F("================================"));
+  Serial1.println(F("=== Commandes serie M-Duino ==="));
+  Serial1.println(F("h         : aide"));
+  Serial1.println(F("r         : snapshot immediat"));
+  Serial1.println(F("s0 / s1   : auto snapshot OFF/ON"));
+  Serial1.println(F("w0 / w1   : vis sans fin OFF/ON [manuel IDLE]"));
+  Serial1.println(F("p0 / p1   : pompe OFF/ON [manuel IDLE]"));
+  Serial1.println(F("c0 / c1   : candelette OFF/ON [manuel IDLE]"));
+  Serial1.println(F("fN        : ventilateur N volts (0..10) [manuel IDLE] ex f5.5"));
+  Serial1.println(F("b1        : START chaudiere basique (MANUAL uniquement)"));
+  Serial1.println(F("b0        : STOP chaudiere basique (MANUAL uniquement)"));
+  Serial1.println(F("a0        : acquitter/effacer ALARM"));
+  Serial1.println(F("i0        : FORCER IDLE"));
+  Serial1.println(F("k1 / k0   : FORCER COOLDOWN ON/OFF (manuel + auto)"));
+  Serial1.println(F("COOLDOWN ON|OFF : idem k1/k0"));
+  Serial1.println(F("--- RTC / Planning ---"));
+  Serial1.println(F("TIME"));
+  Serial1.println(F("SETTIME YYYY-MM-DD HH:MM:SS"));
+  Serial1.println(F("MODE OFF|MANUAL|AUTO"));
+  Serial1.println(F("LISTSCHED"));
+  Serial1.println(F("SETDAY D HH:MM HH:MM HH:MM HH:MM"));
+  Serial1.println(F("DEFAULTSCHED"));
+  Serial1.println(F("SAVE"));
+  Serial1.println(F("--- Puissance ---"));
+  Serial1.println(F("POWER LOW|MED|HIGH   (charge le profil + sauvegarde)"));
+  Serial1.println(F("PARAMS"));
+  Serial1.println(F("PP <ms>   (1000..60000)"));
+  Serial1.println(F("PON <ms>  (50..5000, PON<PP)"));
+  Serial1.println(F("FV <V>    (0..10)"));
+  Serial1.println(F("DEFAULTPARAMS"));
+  Serial1.println(F("================================"));
 }
 
 // --------------------------------------------------------------------
@@ -1195,47 +1195,47 @@ void handleCommand(const String &lineIn) {
 
   if (startsWithNoCase(line, "COOLDOWN")) {
     int sp = line.indexOf(' ');
-    if (sp < 0) { Serial.println(F("ERR: COOLDOWN ON|OFF")); return; }
+    if (sp < 0) { Serial1.println(F("ERR: COOLDOWN ON|OFF")); return; }
     String v = line.substring(sp + 1); v.trim(); v.toUpperCase();
     if (v == "ON" || v == "1") forceCooldownOn(now);
     else if (v == "OFF" || v == "0") forceCooldownOff();
-    else Serial.println(F("ERR: COOLDOWN ON|OFF"));
+    else Serial1.println(F("ERR: COOLDOWN ON|OFF"));
     return;
   }
 
   if (startsWithNoCase(line, "POWER")) {
     int sp = line.indexOf(' ');
-    if (sp < 0) { Serial.println(F("ERR: POWER LOW|MED|HIGH")); return; }
+    if (sp < 0) { Serial1.println(F("ERR: POWER LOW|MED|HIGH")); return; }
     String v = line.substring(sp + 1); v.trim(); v.toUpperCase();
     PowerLevel lvl = powerLevel;
     if (v == "LOW") lvl = PWR_LOW;
     else if (v == "MED" || v == "MEDIUM") lvl = PWR_MED;
     else if (v == "HIGH") lvl = PWR_HIGH;
-    else { Serial.println(F("ERR: POWER LOW|MED|HIGH")); return; }
+    else { Serial1.println(F("ERR: POWER LOW|MED|HIGH")); return; }
 
     applyPowerProfile(lvl);
     if (!validatePowerParams(true)) return;
     eepromSaveAll();
 
-    Serial.print(F("OK: POWER -> "));
-    Serial.println(pwrToStr(powerLevel));
+    Serial1.print(F("OK: POWER -> "));
+    Serial1.println(pwrToStr(powerLevel));
     printParams();
     return;
   }
 
   if (startsWithNoCase(line, "SETTIME")) {
     int sp = line.indexOf(' ');
-    if (sp < 0) { Serial.println(F("ERR: SETTIME format.")); return; }
+    if (sp < 0) { Serial1.println(F("ERR: SETTIME format.")); return; }
     String rest = line.substring(sp + 1); rest.trim();
     int sp2 = rest.indexOf(' ');
-    if (sp2 < 0) { Serial.println(F("ERR: SETTIME format.")); return; }
+    if (sp2 < 0) { Serial1.println(F("ERR: SETTIME format.")); return; }
 
     String d = rest.substring(0, sp2);
     String t = rest.substring(sp2 + 1);
 
     int d1 = d.indexOf('-'), d2 = d.lastIndexOf('-');
     int t1 = t.indexOf(':'), t2 = t.lastIndexOf(':');
-    if (d1 < 0 || d2 <= d1 || t1 < 0 || t2 <= t1) { Serial.println(F("ERR: SETTIME format.")); return; }
+    if (d1 < 0 || d2 <= d1 || t1 < 0 || t2 <= t1) { Serial1.println(F("ERR: SETTIME format.")); return; }
 
     int Y  = d.substring(0, d1).toInt();
     int M  = d.substring(d1 + 1, d2).toInt();
@@ -1252,23 +1252,23 @@ void handleCommand(const String &lineIn) {
     RTC.setMinute(mm);
     RTC.setSecond(ss);
 
-    if (!RTC.write()) Serial.println(F("ERR: RTC.write failed (check switches RTC SCL/SDA)."));
-    else { Serial.println(F("OK: RTC updated.")); printTimeLine(); }
+    if (!RTC.write()) Serial1.println(F("ERR: RTC.write failed (check switches RTC SCL/SDA)."));
+    else { Serial1.println(F("OK: RTC updated.")); printTimeLine(); }
     return;
   }
 
   if (startsWithNoCase(line, "MODE")) {
     int sp = line.indexOf(' ');
-    if (sp < 0) { Serial.println(F("ERR: MODE OFF|MANUAL|AUTO")); return; }
+    if (sp < 0) { Serial1.println(F("ERR: MODE OFF|MANUAL|AUTO")); return; }
     String m = line.substring(sp + 1); m.trim(); m.toUpperCase();
 
     if (m == "OFF") controlMode = MODE_OFF;
     else if (m == "MANUAL") controlMode = MODE_MANUAL;
     else if (m == "AUTO") controlMode = MODE_AUTO;
-    else { Serial.println(F("ERR: MODE OFF|MANUAL|AUTO")); return; }
+    else { Serial1.println(F("ERR: MODE OFF|MANUAL|AUTO")); return; }
 
     eepromSaveAll();
-    Serial.print(F("MODE -> ")); Serial.println(modeToStr(controlMode));
+    Serial1.print(F("MODE -> ")); Serial1.println(modeToStr(controlMode));
 
     if (controlMode == MODE_OFF) {
       if (boilerOn && !stopCooldownActive) boilerBasicStop(now);
@@ -1281,7 +1281,7 @@ void handleCommand(const String &lineIn) {
   if (startsWithNoCase(line, "DEFAULTSCHED")) {
     setDefaultSchedule();
     eepromSaveAll();
-    Serial.println(F("OK: default schedule applied + saved."));
+    Serial1.println(F("OK: default schedule applied + saved."));
     printSchedule();
     return;
   }
@@ -1289,13 +1289,13 @@ void handleCommand(const String &lineIn) {
   if (startsWithNoCase(line, "SAVE")) {
     if (!validatePowerParams(true)) return;
     eepromSaveAll();
-    Serial.println(F("OK: EEPROM saved (mode+sched+params)."));
+    Serial1.println(F("OK: EEPROM saved (mode+sched+params)."));
     return;
   }
 
   if (startsWithNoCase(line, "SETDAY")) {
     int p1 = line.indexOf(' ');
-    if (p1 < 0) { Serial.println(F("ERR: SETDAY D HH:MM HH:MM HH:MM HH:MM")); return; }
+    if (p1 < 0) { Serial1.println(F("ERR: SETDAY D HH:MM HH:MM HH:MM HH:MM")); return; }
     String rest = line.substring(p1 + 1); rest.trim();
 
     String tok[5];
@@ -1307,16 +1307,16 @@ void handleCommand(const String &lineIn) {
       rest = rest.substring(sp + 1);
       rest.trim();
     }
-    if (ti != 5) { Serial.println(F("ERR: SETDAY D HH:MM HH:MM HH:MM HH:MM")); return; }
+    if (ti != 5) { Serial1.println(F("ERR: SETDAY D HH:MM HH:MM HH:MM HH:MM")); return; }
 
     int D = tok[0].toInt();
-    if (D < 1 || D > 7) { Serial.println(F("ERR: D must be 1..7 (Mon..Sun).")); return; }
+    if (D < 1 || D > 7) { Serial1.println(F("ERR: D must be 1..7 (Mon..Sun).")); return; }
 
     int s1 = parseHHMM_toMin(tok[1]);
     int e1 = parseHHMM_toMin(tok[2]);
     int s2 = parseHHMM_toMin(tok[3]);
     int e2 = parseHHMM_toMin(tok[4]);
-    if (s1 < 0 || e1 < 0 || s2 < 0 || e2 < 0) { Serial.println(F("ERR: bad HH:MM.")); return; }
+    if (s1 < 0 || e1 < 0 || s2 < 0 || e2 < 0) { Serial1.println(F("ERR: bad HH:MM.")); return; }
 
     weekSched[D - 1].start1 = (uint16_t)s1;
     weekSched[D - 1].end1   = (uint16_t)e1;
@@ -1324,7 +1324,7 @@ void handleCommand(const String &lineIn) {
     weekSched[D - 1].end2   = (uint16_t)e2;
 
     eepromSaveAll();
-    Serial.println(F("OK: day schedule updated + saved."));
+    Serial1.println(F("OK: day schedule updated + saved."));
     return;
   }
 
@@ -1333,42 +1333,42 @@ void handleCommand(const String &lineIn) {
   if (startsWithNoCase(line, "DEFAULTPARAMS")) {
     setDefaultParams();
     eepromSaveAll();
-    Serial.println(F("OK: default power params applied + saved."));
+    Serial1.println(F("OK: default power params applied + saved."));
     printParams();
     return;
   }
 
   if (startsWithNoCase(line, "PP")) {
     int sp = line.indexOf(' ');
-    if (sp < 0) { Serial.println(F("ERR: PP <ms>")); return; }
+    if (sp < 0) { Serial1.println(F("ERR: PP <ms>")); return; }
     long v = line.substring(sp + 1).toInt();
-    if (v < 1000 || v > 60000) { Serial.println(F("ERR: PP range 1000..60000")); return; }
+    if (v < 1000 || v > 60000) { Serial1.println(F("ERR: PP range 1000..60000")); return; }
     pelletCyclePeriodMs = (unsigned long)v;
     if (!validatePowerParams(true)) return;
-    Serial.println(F("OK"));
+    Serial1.println(F("OK"));
     return;
   }
 
   if (startsWithNoCase(line, "PON")) {
     int sp = line.indexOf(' ');
-    if (sp < 0) { Serial.println(F("ERR: PON <ms>")); return; }
+    if (sp < 0) { Serial1.println(F("ERR: PON <ms>")); return; }
     long v = line.substring(sp + 1).toInt();
-    if (v < 50 || v > 5000) { Serial.println(F("ERR: PON range 50..5000")); return; }
+    if (v < 50 || v > 5000) { Serial1.println(F("ERR: PON range 50..5000")); return; }
     pelletOnDurationMs = (unsigned long)v;
     if (!validatePowerParams(true)) return;
-    Serial.println(F("OK"));
+    Serial1.println(F("OK"));
     return;
   }
 
   if (startsWithNoCase(line, "FV")) {
     int sp = line.indexOf(' ');
-    if (sp < 0) { Serial.println(F("ERR: FV <volts>")); return; }
+    if (sp < 0) { Serial1.println(F("ERR: FV <volts>")); return; }
     float v = line.substring(sp + 1).toFloat();
     if (v < 0.0f) v = 0.0f;
     if (v > 10.0f) v = 10.0f;
     runFanVoltageV = v;
     if (!validatePowerParams(true)) return;
-    Serial.println(F("OK"));
+    Serial1.println(F("OK"));
     return;
   }
 
@@ -1387,8 +1387,8 @@ void handleCommand(const String &lineIn) {
         char v = line.charAt(1);
         if (v == '0') autoSnapshotEnabled = false;
         else if (v == '1') autoSnapshotEnabled = true;
-        Serial.print(F("Auto snapshot -> "));
-        Serial.println(autoSnapshotEnabled ? F("ON") : F("OFF"));
+        Serial1.print(F("Auto snapshot -> "));
+        Serial1.println(autoSnapshotEnabled ? F("ON") : F("OFF"));
       }
       break;
 
@@ -1404,7 +1404,7 @@ void handleCommand(const String &lineIn) {
       if (line.length() >= 2 && line.charAt(1) == '0') {
         alarmActive = false;
         alarmText[0] = '\0';
-        Serial.println(F("ALARM acquittee."));
+        Serial1.println(F("ALARM acquittee."));
       }
       break;
 
@@ -1413,38 +1413,38 @@ void handleCommand(const String &lineIn) {
       break;
 
     case 'w': case 'W':
-      if (!manualAllowed()) { Serial.println(F("Manuel refuse (RUN/COOLDOWN/ALARM).")); break; }
-      if (controlMode == MODE_AUTO) { Serial.println(F("Manuel refuse (MODE=AUTO).")); break; }
+      if (!manualAllowed()) { Serial1.println(F("Manuel refuse (RUN/COOLDOWN/ALARM).")); break; }
+      if (controlMode == MODE_AUTO) { Serial1.println(F("Manuel refuse (MODE=AUTO).")); break; }
       if (line.length() >= 2) {
         statePellet = (line.charAt(1) == '1');
         applyOutputs();
-        Serial.print(F("Vis sans fin -> ")); Serial.println(statePellet ? F("ON") : F("OFF"));
+        Serial1.print(F("Vis sans fin -> ")); Serial1.println(statePellet ? F("ON") : F("OFF"));
       }
       break;
 
     case 'p': case 'P':
-      if (!manualAllowed()) { Serial.println(F("Manuel refuse (RUN/COOLDOWN/ALARM).")); break; }
-      if (controlMode == MODE_AUTO) { Serial.println(F("Manuel refuse (MODE=AUTO).")); break; }
+      if (!manualAllowed()) { Serial1.println(F("Manuel refuse (RUN/COOLDOWN/ALARM).")); break; }
+      if (controlMode == MODE_AUTO) { Serial1.println(F("Manuel refuse (MODE=AUTO).")); break; }
       if (line.length() >= 2) {
         statePump = (line.charAt(1) == '1');
         applyOutputs();
-        Serial.print(F("Pompe -> ")); Serial.println(statePump ? F("ON") : F("OFF"));
+        Serial1.print(F("Pompe -> ")); Serial1.println(statePump ? F("ON") : F("OFF"));
       }
       break;
 
     case 'c': case 'C':
-      if (!manualAllowed()) { Serial.println(F("Manuel refuse (RUN/COOLDOWN/ALARM).")); break; }
-      if (controlMode == MODE_AUTO) { Serial.println(F("Manuel refuse (MODE=AUTO).")); break; }
+      if (!manualAllowed()) { Serial1.println(F("Manuel refuse (RUN/COOLDOWN/ALARM).")); break; }
+      if (controlMode == MODE_AUTO) { Serial1.println(F("Manuel refuse (MODE=AUTO).")); break; }
       if (line.length() >= 2) {
         stateCandle = (line.charAt(1) == '1');
         applyOutputs();
-        Serial.print(F("Candelette -> ")); Serial.println(stateCandle ? F("ON") : F("OFF"));
+        Serial1.print(F("Candelette -> ")); Serial1.println(stateCandle ? F("ON") : F("OFF"));
       }
       break;
 
     case 'f': case 'F':
-      if (!manualAllowed()) { Serial.println(F("Manuel refuse (RUN/COOLDOWN/ALARM).")); break; }
-      if (controlMode == MODE_AUTO) { Serial.println(F("Manuel refuse (MODE=AUTO).")); break; }
+      if (!manualAllowed()) { Serial1.println(F("Manuel refuse (RUN/COOLDOWN/ALARM).")); break; }
+      if (controlMode == MODE_AUTO) { Serial1.println(F("Manuel refuse (MODE=AUTO).")); break; }
       if (line.length() >= 2) {
         float v = line.substring(1).toFloat();
         if (v < 0.0f) v = 0.0f;
@@ -1452,13 +1452,13 @@ void handleCommand(const String &lineIn) {
         fanVoltageV = v;
         fanPwm      = voltsToPwm(fanVoltageV);
         applyOutputs();
-        Serial.print(F("Ventilateur(manuel) -> ")); Serial.print(fanVoltageV, 1); Serial.println(F(" V"));
+        Serial1.print(F("Ventilateur(manuel) -> ")); Serial1.print(fanVoltageV, 1); Serial1.println(F(" V"));
       }
       break;
 
     case 'b': case 'B':
       if (controlMode == MODE_AUTO) {
-        Serial.println(F("b0/b1 refuses (MODE=AUTO). Utiliser MODE MANUAL."));
+        Serial1.println(F("b0/b1 refuses (MODE=AUTO). Utiliser MODE MANUAL."));
         break;
       }
       if (line.length() >= 2) {
@@ -1469,8 +1469,8 @@ void handleCommand(const String &lineIn) {
       break;
 
     default:
-      Serial.print(F("Commande inconnue: "));
-      Serial.println(line);
+      Serial1.print(F("Commande inconnue: "));
+      Serial1.println(line);
       printHelp();
       break;
   }
@@ -1482,8 +1482,8 @@ void handleCommand(const String &lineIn) {
 
 void serviceSerial() {
   static String buffer;
-  while (Serial.available() > 0) {
-    char c = (char)Serial.read();
+  while (Serial1.available() > 0) {
+    char c = (char)Serial1.read();
     if (c == '\r') continue;
     if (c == '\n') { handleCommand(buffer); buffer = ""; }
     else buffer += c;
@@ -1507,12 +1507,12 @@ static void captureResetCauseEarly() {
 
 static void printResetCause() {
 #if defined(ARDUINO_ARCH_AVR) && ENABLE_WDT
-  Serial.print(F("ResetCause(MCUSR)=0x"));
-  Serial.println(g_resetCause, HEX);
-  if (g_resetCause & _BV(WDRF)) Serial.println(F(" - WDT reset"));
-  if (g_resetCause & _BV(BORF)) Serial.println(F(" - Brown-out reset"));
-  if (g_resetCause & _BV(EXTRF)) Serial.println(F(" - External reset"));
-  if (g_resetCause & _BV(PORF)) Serial.println(F(" - Power-on reset"));
+  Serial1.print(F("ResetCause(MCUSR)=0x"));
+  Serial1.println(g_resetCause, HEX);
+  if (g_resetCause & _BV(WDRF)) Serial1.println(F(" - WDT reset"));
+  if (g_resetCause & _BV(BORF)) Serial1.println(F(" - Brown-out reset"));
+  if (g_resetCause & _BV(EXTRF)) Serial1.println(F(" - External reset"));
+  if (g_resetCause & _BV(PORF)) Serial1.println(F(" - Power-on reset"));
 #else
   (void)g_resetCause;
 #endif
@@ -1536,13 +1536,13 @@ static inline void watchdogKick() {
 void setup() {
   captureResetCauseEarly();
 
-  Serial.begin(115200);
+  Serial1.begin(115200);
 
   // Évite blocage éternel si pas d'USB: max ~2s
   unsigned long t0 = millis();
-  while (!Serial && (millis() - t0 < 2000UL)) {}
+  while (!Serial1 && (millis() - t0 < 2000UL)) {}
 
-  Serial.println(F("=== M-Duino 38AR+ Boiler basic + RTC cache/throttle + RTCSTATS + POWER + FORCE_COOLDOWN + WDT ==="));
+  Serial1.println(F("=== M-Duino 38AR+ Boiler basic + RTC cache/throttle + RTCSTATS + POWER + FORCE_COOLDOWN + WDT ==="));
   printResetCause();
 
   // Entrées analogiques
@@ -1596,14 +1596,14 @@ void setup() {
     setDefaultSchedule();
     setDefaultParams();
     eepromSaveAll();
-    Serial.println(F("EEPROM: no valid data -> defaults created."));
+    Serial1.println(F("EEPROM: no valid data -> defaults created."));
   } else {
     if (!validatePowerParams(false)) {
       setDefaultParams();
       eepromSaveAll();
-      Serial.println(F("EEPROM: invalid power params -> reset to defaults."));
+      Serial1.println(F("EEPROM: invalid power params -> reset to defaults."));
     } else {
-      Serial.println(F("EEPROM: loaded OK."));
+      Serial1.println(F("EEPROM: loaded OK."));
     }
   }
 
