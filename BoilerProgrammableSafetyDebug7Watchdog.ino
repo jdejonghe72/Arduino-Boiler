@@ -100,14 +100,17 @@ float lastTempFumeesC = NAN;
 // --------------------------------------------------------------------
 // MODE CHAUDIÈRE BASIQUE
 // --------------------------------------------------------------------
-const unsigned long IGNITION_DURATION_MS   = 10UL * 60UL * 1000UL;
+const unsigned long IGNITION_DURATION_MS   = 6UL * 60UL * 1000UL;
 const unsigned long PUMP_START_DELAY_MS    = 1UL  * 60UL * 1000UL;
 const unsigned long STOP_COOLDOWN_MS       = 10UL * 60UL * 1000UL;
+const unsigned long STARTUP_LOW_POWER_MS   = 10UL * 60UL * 1000UL;
 
 bool boilerOn = false;
 bool stopCooldownActive = false;
 unsigned long boilerStartMs = 0;
 unsigned long stopStartMs   = 0;
+bool startupLowPowerActive = false;
+unsigned long startupLowPowerUntilMs = 0;
 
 // Repère de start (NO FIRE + diag NO DEP)
 unsigned long lastStartMs = 0;
@@ -117,6 +120,7 @@ unsigned long lastStartMs = 0;
 // --------------------------------------------------------------------
 enum PowerLevel : uint8_t { PWR_LOW = 0, PWR_MED = 1, PWR_HIGH = 2 };
 PowerLevel powerLevel = PWR_MED;
+PowerLevel selectedPowerLevel = PWR_MED;
 
 struct PowerProfile {
   unsigned long ppMs;
@@ -143,6 +147,12 @@ void applyPowerProfile(PowerLevel lvl) {
   pelletCyclePeriodMs = kProfiles[(uint8_t)lvl].ppMs;
   pelletOnDurationMs  = kProfiles[(uint8_t)lvl].ponMs;
   runFanVoltageV      = kProfiles[(uint8_t)lvl].fvV;
+}
+
+void setSelectedPowerLevel(PowerLevel lvl, bool applyNow) {
+  if ((uint8_t)lvl > 2) lvl = PWR_MED;
+  selectedPowerLevel = lvl;
+  if (applyNow) applyPowerProfile(lvl);
 }
 
 // --------------------------------------------------------------------
@@ -315,7 +325,7 @@ void setDefaultSchedule() {
 }
 
 void setDefaultParams() {
-  applyPowerProfile(PWR_MED);
+  setSelectedPowerLevel(PWR_MED, true);
 }
 
 void eepromSaveAll() {
@@ -323,7 +333,7 @@ void eepromSaveAll() {
   ed.magic = EEPROM_MAGIC;
   ed.ver   = EEPROM_VER;
   ed.mode  = (uint8_t)controlMode;
-  ed.pwrLevel = (uint8_t)powerLevel;
+  ed.pwrLevel = (uint8_t)selectedPowerLevel;
   ed.reserved = 0;
   for (int i = 0; i < 7; i++) ed.sched[i] = weekSched[i];
   ed.pelletCyclePeriodMs = pelletCyclePeriodMs;
@@ -351,8 +361,9 @@ bool eepromLoadAny() {
     if (crc != calc) return false;
 
     controlMode = (ControlMode)ed.mode;
-    powerLevel  = (PowerLevel)ed.pwrLevel;
-    if ((uint8_t)powerLevel > 2) powerLevel = PWR_MED;
+    selectedPowerLevel  = (PowerLevel)ed.pwrLevel;
+    if ((uint8_t)selectedPowerLevel > 2) selectedPowerLevel = PWR_MED;
+    applyPowerProfile(selectedPowerLevel);
 
     for (int i = 0; i < 7; i++) weekSched[i] = ed.sched[i];
     pelletCyclePeriodMs = ed.pelletCyclePeriodMs;
@@ -370,7 +381,8 @@ bool eepromLoadAny() {
     if (crc != calc) return false;
 
     controlMode = (ControlMode)ed.mode;
-    powerLevel  = PWR_MED; // défaut en migration
+    selectedPowerLevel  = PWR_MED; // défaut en migration
+    applyPowerProfile(selectedPowerLevel);
     for (int i = 0; i < 7; i++) weekSched[i] = ed.sched[i];
     pelletCyclePeriodMs = ed.pelletCyclePeriodMs;
     pelletOnDurationMs  = ed.pelletOnDurationMs;
@@ -736,6 +748,9 @@ void autoControlService(unsigned long nowMs) {
       boilerOn = true;
       boilerStartMs = nowMs;
       lastStartMs = nowMs;
+      startupLowPowerActive = true;
+      startupLowPowerUntilMs = nowMs + STARTUP_LOW_POWER_MS;
+      applyPowerProfile(PWR_LOW);
 
       stateCandle = true;
       fanVoltageV = runFanVoltageV;
@@ -785,6 +800,9 @@ void boilerBasicStart(unsigned long now) {
   boilerOn = true;
   boilerStartMs = now;
   lastStartMs = now;
+  startupLowPowerActive = true;
+  startupLowPowerUntilMs = now + STARTUP_LOW_POWER_MS;
+  applyPowerProfile(PWR_LOW);
 
   stateCandle = true;
   fanVoltageV = runFanVoltageV;
@@ -809,6 +827,7 @@ void boilerBasicStop(unsigned long now) {
   boilerOn = false;
   stopCooldownActive = true;
   stopStartMs = now;
+  startupLowPowerActive = false;
 
   statePellet = false;
   stateCandle = false;
@@ -819,6 +838,12 @@ void boilerBasicStop(unsigned long now) {
 
 void boilerBasicService(unsigned long now) {
   if (boilerOn) {
+    if (startupLowPowerActive && (long)(now - startupLowPowerUntilMs) >= 0) {
+      startupLowPowerActive = false;
+      applyPowerProfile(selectedPowerLevel);
+      Serial.println(F("Startup: fin puissance LOW -> retour profil choisi."));
+    }
+
     unsigned long elapsed = now - boilerStartMs;
 
     fanVoltageV = runFanVoltageV;
@@ -883,6 +908,8 @@ void forceIdle(unsigned long now) {
   alarmText[0] = '\0';
 
   forceCooldownActive = false;
+  startupLowPowerActive = false;
+  startupLowPowerUntilMs = 0;
 
   statePellet = false;
   statePump   = false;
@@ -1228,7 +1255,8 @@ void handleCommand(const String &lineIn) {
     else if (v == "HIGH") lvl = PWR_HIGH;
     else { Serial.println(F("ERR: POWER LOW|MED|HIGH")); return; }
 
-    applyPowerProfile(lvl);
+    setSelectedPowerLevel(lvl, !(boilerOn && startupLowPowerActive));
+    if (boilerOn && startupLowPowerActive) applyPowerProfile(PWR_LOW);
     if (!validatePowerParams(true)) return;
     eepromSaveAll();
 
