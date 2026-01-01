@@ -1,4 +1,11 @@
 // ============================================================================
+// COMMENT FLASHER :
+//   - Tools > Board > industrialshield-avr > M-DUINO Family
+//   - Tools > Port > puis sélectionner le bon
+//   - Tools > Model > M-DUINO 38AR+
+//   Voilà !
+// ============================================================================
+// ============================================================================
 // M-Duino 38AR+ : Chaudière basique + MAX6675 (sans bibliothèque)
 // + RTC + EEPROM + Planning hebdo (2 plages/jour)
 // + Sécurités : diagnostic-only en IDLE, latch + cooldown en RUN/COOLDOWN
