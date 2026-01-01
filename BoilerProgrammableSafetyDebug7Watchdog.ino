@@ -103,7 +103,7 @@ float lastTempFumeesC = NAN;
 const unsigned long IGNITION_DURATION_MS   = 6UL * 60UL * 1000UL;
 const unsigned long PUMP_START_DELAY_MS    = 1UL  * 60UL * 1000UL;
 const unsigned long STOP_COOLDOWN_MS       = 10UL * 60UL * 1000UL;
-const unsigned long STARTUP_LOW_POWER_MS   = 10UL * 60UL * 1000UL;
+const unsigned long STARTUP_LOW_POWER_MS   = 6UL * 60UL * 1000UL;
 
 bool boilerOn = false;
 bool stopCooldownActive = false;
@@ -750,7 +750,7 @@ void autoControlService(unsigned long nowMs) {
       lastStartMs = nowMs;
       startupLowPowerActive = true;
       startupLowPowerUntilMs = nowMs + STARTUP_LOW_POWER_MS;
-      applyPowerProfile(PWR_LOW);
+      applyPowerProfile(PWR_MED);
 
       stateCandle = true;
       fanVoltageV = runFanVoltageV;
@@ -802,7 +802,7 @@ void boilerBasicStart(unsigned long now) {
   lastStartMs = now;
   startupLowPowerActive = true;
   startupLowPowerUntilMs = now + STARTUP_LOW_POWER_MS;
-  applyPowerProfile(PWR_LOW);
+  applyPowerProfile(PWR_MED);
 
   stateCandle = true;
   fanVoltageV = runFanVoltageV;
@@ -841,7 +841,7 @@ void boilerBasicService(unsigned long now) {
     if (startupLowPowerActive && (long)(now - startupLowPowerUntilMs) >= 0) {
       startupLowPowerActive = false;
       applyPowerProfile(selectedPowerLevel);
-      Serial.println(F("Startup: fin puissance LOW -> retour profil choisi."));
+      Serial.println(F("Startup: fin puissance MED -> retour profil choisi."));
     }
 
     unsigned long elapsed = now - boilerStartMs;
@@ -1256,7 +1256,7 @@ void handleCommand(const String &lineIn) {
     else { Serial.println(F("ERR: POWER LOW|MED|HIGH")); return; }
 
     setSelectedPowerLevel(lvl, !(boilerOn && startupLowPowerActive));
-    if (boilerOn && startupLowPowerActive) applyPowerProfile(PWR_LOW);
+    if (boilerOn && startupLowPowerActive) applyPowerProfile(PWR_MED);
     if (!validatePowerParams(true)) return;
     eepromSaveAll();
 
