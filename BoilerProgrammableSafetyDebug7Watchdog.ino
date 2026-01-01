@@ -36,6 +36,13 @@
 #include <RTC.h>
 
 // --------------------------------------------------------------------
+// NEXTION (utilise Serial1 pour ne pas bloquer le debug sur Serial)
+// --------------------------------------------------------------------
+#define ENABLE_NEXTION 1
+#define NEXTION_BAUD 9600
+#define NEXTION_SERIAL Serial1
+
+// --------------------------------------------------------------------
 // WATCHDOG enable switch
 // --------------------------------------------------------------------
 #define ENABLE_WDT 1  // 0 = watchdog désactivé, 1 = watchdog activé
@@ -277,6 +284,7 @@ void logAutoEventIfChanged(unsigned long nowMs);
 void printSnapshot();
 void applyOutputs();
 void forceCooldown(unsigned long now);
+void serviceNextion();
 
 // --------------------------------------------------------------------
 // OUTILS CRC / EEPROM
@@ -1491,6 +1499,68 @@ void serviceSerial() {
 }
 
 // --------------------------------------------------------------------
+// NEXTION (Serial1) : commandes simples START/STOP/AUTO/MANUAL/POWER
+// --------------------------------------------------------------------
+void handleNextionCommand(const String &lineIn) {
+  String line = lineIn;
+  line.trim();
+  line.toUpperCase();
+  if (line.length() == 0) return;
+
+  if (line == "START") { handleCommand("b1"); return; }
+  if (line == "STOP")  { handleCommand("b0"); return; }
+
+  if (line == "MODE_AUTO" || line == "AUTO")   { handleCommand("MODE AUTO"); return; }
+  if (line == "MODE_MANUAL" || line == "MANUAL") { handleCommand("MODE MANUAL"); return; }
+  if (line == "MODE_OFF" || line == "OFF") { handleCommand("MODE OFF"); return; }
+
+  if (line == "PWR_LOW" || line == "POWER_LOW")   { handleCommand("POWER LOW"); return; }
+  if (line == "PWR_MED" || line == "POWER_MED")   { handleCommand("POWER MED"); return; }
+  if (line == "PWR_HIGH" || line == "POWER_HIGH") { handleCommand("POWER HIGH"); return; }
+  if (line == "FORCE_IDLE" || line == "IDLE") { handleCommand("i0"); return; }
+  if (line == "COOLDOWN_ON")  { handleCommand("k1"); return; }
+  if (line == "COOLDOWN_OFF") { handleCommand("k0"); return; }
+
+  Serial.print(F("Nextion cmd inconnu: "));
+  Serial.println(line);
+}
+
+void serviceNextion() {
+#if ENABLE_NEXTION
+  static String buffer;
+  static uint8_t ffCount = 0;
+
+  while (NEXTION_SERIAL.available() > 0) {
+    uint8_t b = (uint8_t)NEXTION_SERIAL.read();
+
+    if (b == 0xFF) {
+      ffCount++;
+      if (ffCount >= 3) {
+        if (buffer.length() > 0) {
+          handleNextionCommand(buffer);
+          buffer = "";
+        }
+        ffCount = 0;
+      }
+      continue;
+    }
+
+    if (ffCount > 0) ffCount = 0;
+
+    if (b == '\r' || b == '\n') {
+      if (buffer.length() > 0) {
+        handleNextionCommand(buffer);
+        buffer = "";
+      }
+      continue;
+    }
+
+    if (buffer.length() < 64) buffer += (char)b;
+  }
+#endif
+}
+
+// --------------------------------------------------------------------
 // WATCHDOG helpers (AVR) - compilable disable via ENABLE_WDT
 // --------------------------------------------------------------------
 static uint8_t g_resetCause = 0;
@@ -1537,6 +1607,9 @@ void setup() {
   captureResetCauseEarly();
 
   Serial.begin(115200);
+#if ENABLE_NEXTION
+  NEXTION_SERIAL.begin(NEXTION_BAUD);
+#endif
 
   // Évite blocage éternel si pas d'USB: max ~2s
   unsigned long t0 = millis();
@@ -1650,6 +1723,7 @@ void loop() {
   g_loop_count++;
 
   serviceSerial();
+  serviceNextion();
 
   // Mise à jour RTC (throttled) - UNE seule lecture périodique
   rtcPollService(now);
