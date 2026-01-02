@@ -1,4 +1,11 @@
 // ============================================================================
+// COMMENT FLASHER :
+//   - Tools > Board > industrialshield-avr > M-DUINO Family
+//   - Tools > Port > puis sélectionner le bon
+//   - Tools > Model > M-DUINO 38AR+
+//   Voilà !
+// ============================================================================
+// ============================================================================
 // M-Duino 38AR+ : Chaudière basique + MAX6675 (sans bibliothèque)
 // + RTC + EEPROM + Planning hebdo (2 plages/jour)
 // + Sécurités : diagnostic-only en IDLE, latch + cooldown en RUN/COOLDOWN
@@ -34,6 +41,13 @@
 #include <math.h>
 #include <EEPROM.h>
 #include <RTC.h>
+
+// --------------------------------------------------------------------
+// NEXTION (utilise Serial1 pour ne pas bloquer le debug sur Serial)
+// --------------------------------------------------------------------
+#define ENABLE_NEXTION 1
+#define NEXTION_BAUD 9600
+#define NEXTION_SERIAL Serial1
 
 // --------------------------------------------------------------------
 // WATCHDOG enable switch
@@ -86,14 +100,17 @@ float lastTempFumeesC = NAN;
 // --------------------------------------------------------------------
 // MODE CHAUDIÈRE BASIQUE
 // --------------------------------------------------------------------
-const unsigned long IGNITION_DURATION_MS   = 10UL * 60UL * 1000UL;
+const unsigned long IGNITION_DURATION_MS   = 6UL * 60UL * 1000UL;
 const unsigned long PUMP_START_DELAY_MS    = 1UL  * 60UL * 1000UL;
 const unsigned long STOP_COOLDOWN_MS       = 10UL * 60UL * 1000UL;
+const unsigned long STARTUP_LOW_POWER_MS   = 6UL * 60UL * 1000UL;
 
 bool boilerOn = false;
 bool stopCooldownActive = false;
 unsigned long boilerStartMs = 0;
 unsigned long stopStartMs   = 0;
+bool startupLowPowerActive = false;
+unsigned long startupLowPowerUntilMs = 0;
 
 // Repère de start (NO FIRE + diag NO DEP)
 unsigned long lastStartMs = 0;
@@ -103,6 +120,7 @@ unsigned long lastStartMs = 0;
 // --------------------------------------------------------------------
 enum PowerLevel : uint8_t { PWR_LOW = 0, PWR_MED = 1, PWR_HIGH = 2 };
 PowerLevel powerLevel = PWR_MED;
+PowerLevel selectedPowerLevel = PWR_MED;
 
 struct PowerProfile {
   unsigned long ppMs;
@@ -129,6 +147,12 @@ void applyPowerProfile(PowerLevel lvl) {
   pelletCyclePeriodMs = kProfiles[(uint8_t)lvl].ppMs;
   pelletOnDurationMs  = kProfiles[(uint8_t)lvl].ponMs;
   runFanVoltageV      = kProfiles[(uint8_t)lvl].fvV;
+}
+
+void setSelectedPowerLevel(PowerLevel lvl, bool applyNow) {
+  if ((uint8_t)lvl > 2) lvl = PWR_MED;
+  selectedPowerLevel = lvl;
+  if (applyNow) applyPowerProfile(lvl);
 }
 
 // --------------------------------------------------------------------
@@ -277,6 +301,7 @@ void logAutoEventIfChanged(unsigned long nowMs);
 void printSnapshot();
 void applyOutputs();
 void forceCooldown(unsigned long now);
+void serviceNextion();
 
 // --------------------------------------------------------------------
 // OUTILS CRC / EEPROM
@@ -300,7 +325,7 @@ void setDefaultSchedule() {
 }
 
 void setDefaultParams() {
-  applyPowerProfile(PWR_MED);
+  setSelectedPowerLevel(PWR_MED, true);
 }
 
 void eepromSaveAll() {
@@ -308,7 +333,7 @@ void eepromSaveAll() {
   ed.magic = EEPROM_MAGIC;
   ed.ver   = EEPROM_VER;
   ed.mode  = (uint8_t)controlMode;
-  ed.pwrLevel = (uint8_t)powerLevel;
+  ed.pwrLevel = (uint8_t)selectedPowerLevel;
   ed.reserved = 0;
   for (int i = 0; i < 7; i++) ed.sched[i] = weekSched[i];
   ed.pelletCyclePeriodMs = pelletCyclePeriodMs;
@@ -336,8 +361,9 @@ bool eepromLoadAny() {
     if (crc != calc) return false;
 
     controlMode = (ControlMode)ed.mode;
-    powerLevel  = (PowerLevel)ed.pwrLevel;
-    if ((uint8_t)powerLevel > 2) powerLevel = PWR_MED;
+    selectedPowerLevel  = (PowerLevel)ed.pwrLevel;
+    if ((uint8_t)selectedPowerLevel > 2) selectedPowerLevel = PWR_MED;
+    applyPowerProfile(selectedPowerLevel);
 
     for (int i = 0; i < 7; i++) weekSched[i] = ed.sched[i];
     pelletCyclePeriodMs = ed.pelletCyclePeriodMs;
@@ -355,7 +381,8 @@ bool eepromLoadAny() {
     if (crc != calc) return false;
 
     controlMode = (ControlMode)ed.mode;
-    powerLevel  = PWR_MED; // défaut en migration
+    selectedPowerLevel  = PWR_MED; // défaut en migration
+    applyPowerProfile(selectedPowerLevel);
     for (int i = 0; i < 7; i++) weekSched[i] = ed.sched[i];
     pelletCyclePeriodMs = ed.pelletCyclePeriodMs;
     pelletOnDurationMs  = ed.pelletOnDurationMs;
@@ -721,6 +748,9 @@ void autoControlService(unsigned long nowMs) {
       boilerOn = true;
       boilerStartMs = nowMs;
       lastStartMs = nowMs;
+      startupLowPowerActive = true;
+      startupLowPowerUntilMs = nowMs + STARTUP_LOW_POWER_MS;
+      applyPowerProfile(PWR_MED);
 
       stateCandle = true;
       fanVoltageV = runFanVoltageV;
@@ -770,6 +800,9 @@ void boilerBasicStart(unsigned long now) {
   boilerOn = true;
   boilerStartMs = now;
   lastStartMs = now;
+  startupLowPowerActive = true;
+  startupLowPowerUntilMs = now + STARTUP_LOW_POWER_MS;
+  applyPowerProfile(PWR_MED);
 
   stateCandle = true;
   fanVoltageV = runFanVoltageV;
@@ -794,6 +827,7 @@ void boilerBasicStop(unsigned long now) {
   boilerOn = false;
   stopCooldownActive = true;
   stopStartMs = now;
+  startupLowPowerActive = false;
 
   statePellet = false;
   stateCandle = false;
@@ -804,6 +838,12 @@ void boilerBasicStop(unsigned long now) {
 
 void boilerBasicService(unsigned long now) {
   if (boilerOn) {
+    if (startupLowPowerActive && (long)(now - startupLowPowerUntilMs) >= 0) {
+      startupLowPowerActive = false;
+      applyPowerProfile(selectedPowerLevel);
+      Serial.println(F("Startup: fin puissance MED -> retour profil choisi."));
+    }
+
     unsigned long elapsed = now - boilerStartMs;
 
     fanVoltageV = runFanVoltageV;
@@ -868,6 +908,8 @@ void forceIdle(unsigned long now) {
   alarmText[0] = '\0';
 
   forceCooldownActive = false;
+  startupLowPowerActive = false;
+  startupLowPowerUntilMs = 0;
 
   statePellet = false;
   statePump   = false;
@@ -1213,7 +1255,8 @@ void handleCommand(const String &lineIn) {
     else if (v == "HIGH") lvl = PWR_HIGH;
     else { Serial.println(F("ERR: POWER LOW|MED|HIGH")); return; }
 
-    applyPowerProfile(lvl);
+    setSelectedPowerLevel(lvl, !(boilerOn && startupLowPowerActive));
+    if (boilerOn && startupLowPowerActive) applyPowerProfile(PWR_MED);
     if (!validatePowerParams(true)) return;
     eepromSaveAll();
 
@@ -1491,6 +1534,68 @@ void serviceSerial() {
 }
 
 // --------------------------------------------------------------------
+// NEXTION (Serial1) : commandes simples START/STOP/AUTO/MANUAL/POWER
+// --------------------------------------------------------------------
+void handleNextionCommand(const String &lineIn) {
+  String line = lineIn;
+  line.trim();
+  line.toUpperCase();
+  if (line.length() == 0) return;
+
+  if (line == "START") { handleCommand("b1"); return; }
+  if (line == "STOP")  { handleCommand("b0"); return; }
+
+  if (line == "MODE_AUTO" || line == "AUTO")   { handleCommand("MODE AUTO"); return; }
+  if (line == "MODE_MANUAL" || line == "MANUAL") { handleCommand("MODE MANUAL"); return; }
+  if (line == "MODE_OFF" || line == "OFF") { handleCommand("MODE OFF"); return; }
+
+  if (line == "PWR_LOW" || line == "POWER_LOW")   { handleCommand("POWER LOW"); return; }
+  if (line == "PWR_MED" || line == "POWER_MED")   { handleCommand("POWER MED"); return; }
+  if (line == "PWR_HIGH" || line == "POWER_HIGH") { handleCommand("POWER HIGH"); return; }
+  if (line == "FORCE_IDLE" || line == "IDLE") { handleCommand("i0"); return; }
+  if (line == "COOLDOWN_ON")  { handleCommand("k1"); return; }
+  if (line == "COOLDOWN_OFF") { handleCommand("k0"); return; }
+
+  Serial.print(F("Nextion cmd inconnu: "));
+  Serial.println(line);
+}
+
+void serviceNextion() {
+#if ENABLE_NEXTION
+  static String buffer;
+  static uint8_t ffCount = 0;
+
+  while (NEXTION_SERIAL.available() > 0) {
+    uint8_t b = (uint8_t)NEXTION_SERIAL.read();
+
+    if (b == 0xFF) {
+      ffCount++;
+      if (ffCount >= 3) {
+        if (buffer.length() > 0) {
+          handleNextionCommand(buffer);
+          buffer = "";
+        }
+        ffCount = 0;
+      }
+      continue;
+    }
+
+    if (ffCount > 0) ffCount = 0;
+
+    if (b == '\r' || b == '\n') {
+      if (buffer.length() > 0) {
+        handleNextionCommand(buffer);
+        buffer = "";
+      }
+      continue;
+    }
+
+    if (buffer.length() < 64) buffer += (char)b;
+  }
+#endif
+}
+
+// --------------------------------------------------------------------
 // WATCHDOG helpers (AVR) - compilable disable via ENABLE_WDT
 // --------------------------------------------------------------------
 static uint8_t g_resetCause = 0;
@@ -1537,6 +1642,9 @@ void setup() {
   captureResetCauseEarly();
 
   Serial.begin(115200);
+#if ENABLE_NEXTION
+  NEXTION_SERIAL.begin(NEXTION_BAUD);
+#endif
 
   // Évite blocage éternel si pas d'USB: max ~2s
   unsigned long t0 = millis();
@@ -1650,6 +1758,7 @@ void loop() {
   g_loop_count++;
 
   serviceSerial();
+  serviceNextion();
 
   // Mise à jour RTC (throttled) - UNE seule lecture périodique
   rtcPollService(now);
