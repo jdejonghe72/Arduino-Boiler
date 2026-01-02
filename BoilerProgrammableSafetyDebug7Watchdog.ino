@@ -310,6 +310,7 @@ void applyOutputs();
 void forceCooldown(unsigned long now);
 void serviceNextion();
 void updateNextionFireState(bool force);
+void updateNextionControlMode(bool force);
 
 // --------------------------------------------------------------------
 // OUTILS CRC / EEPROM
@@ -1609,6 +1610,24 @@ void updateNextionFireState(bool force) {
 #endif
 }
 
+void updateNextionControlMode(bool force) {
+#if ENABLE_NEXTION
+  static bool lastAuto = false;
+  static bool init = false;
+
+  bool isAuto = (controlMode == MODE_AUTO);
+  if (!force && init && isAuto == lastAuto) return;
+
+  lastAuto = isAuto;
+  init = true;
+
+  if (isAuto) nextionSendCommand(F("sw0.val=1"));
+  else nextionSendCommand(F("sw0.val=0"));
+#else
+  (void)force;
+#endif
+}
+
 void serviceNextion() {
 #if ENABLE_NEXTION
   static String buffer;
@@ -1795,6 +1814,7 @@ void setup() {
 
   lastTickMs = millis();
   updateNextionFireState(true);
+  updateNextionControlMode(true);
 
   // Activer WDT en fin de setup (après initialisations)
 #if defined(ARDUINO_ARCH_AVR) && ENABLE_WDT
