@@ -268,6 +268,8 @@ bool lastRtcOkLogged = true;
 enum FireState : uint8_t { FIRE_IDLE = 0, FIRE_RUN = 1, FIRE_COOLDOWN = 2 };
 static FireState lastNextionFireState = FIRE_IDLE;
 static bool nextionFireStateInit = false;
+static bool lastNextionCandleOn = false;
+static bool nextionCandleInit = false;
 
 // --------------------------------------------------------------------
 // PATCH TEST RTC: instrumentation rtcReadOk() / I2C load
@@ -311,6 +313,7 @@ void forceCooldown(unsigned long now);
 void serviceNextion();
 void updateNextionFireState(bool force);
 void updateNextionControlMode(bool force);
+void updateNextionCandleState(bool force);
 
 // --------------------------------------------------------------------
 // OUTILS CRC / EEPROM
@@ -1596,6 +1599,8 @@ void updateNextionFireState(bool force) {
   switch (state) {
     case FIRE_RUN:
       nextionSendCommand(F("redfire.en=1"));
+      nextionSendCommand(F("page0.nofire.aph=0"));
+      nextionSendCommand(F("page1.nofire.aph=0"));
       break;
     case FIRE_COOLDOWN:
       nextionSendCommand(F("flashfire.en=1"));
@@ -1603,6 +1608,8 @@ void updateNextionFireState(bool force) {
     case FIRE_IDLE:
     default:
       nextionSendCommand(F("grayfire.en=1"));
+      nextionSendCommand(F("page0.nofire.aph=127"));
+      nextionSendCommand(F("page1.nofire.aph=127"));
       break;
   }
 #else
@@ -1623,6 +1630,26 @@ void updateNextionControlMode(bool force) {
 
   if (isAuto) nextionSendCommand(F("page0.sw0.val=1"));
   else nextionSendCommand(F("page0.sw0.val=0"));
+#else
+  (void)force;
+#endif
+}
+
+void updateNextionCandleState(bool force) {
+#if ENABLE_NEXTION
+  bool candleOn = stateCandle;
+  if (!force && nextionCandleInit && candleOn == lastNextionCandleOn) return;
+
+  lastNextionCandleOn = candleOn;
+  nextionCandleInit = true;
+
+  if (candleOn) {
+    nextionSendCommand(F("page0.bougie.aph=127"));
+    nextionSendCommand(F("page1.bougie.aph=127"));
+  } else {
+    nextionSendCommand(F("page0.bougie.aph=0"));
+    nextionSendCommand(F("page1.bougie.aph=0"));
+  }
 #else
   (void)force;
 #endif
@@ -1815,6 +1842,7 @@ void setup() {
   lastTickMs = millis();
   updateNextionFireState(true);
   updateNextionControlMode(true);
+  updateNextionCandleState(true);
 
   // Activer WDT en fin de setup (après initialisations)
 #if defined(ARDUINO_ARCH_AVR) && ENABLE_WDT
@@ -1848,6 +1876,8 @@ void loop() {
 
   // Service chaudière
   boilerBasicService(now);
+
+  updateNextionCandleState(false);
 
   // Patch: debug + failsafe vis
   pelletDebugAndFailsafe(now);
