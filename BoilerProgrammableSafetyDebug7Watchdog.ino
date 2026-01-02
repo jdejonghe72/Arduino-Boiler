@@ -1621,8 +1621,8 @@ void updateNextionControlMode(bool force) {
   lastAuto = isAuto;
   init = true;
 
-  if (isAuto) nextionSendCommand(F("sw0.val=1"));
-  else nextionSendCommand(F("sw0.val=0"));
+  if (isAuto) nextionSendCommand(F("page0.sw0.val=1"));
+  else nextionSendCommand(F("page0.sw0.val=0"));
 #else
   (void)force;
 #endif
