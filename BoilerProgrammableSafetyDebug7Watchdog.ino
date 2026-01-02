@@ -263,6 +263,13 @@ bool lastCooldownLogged = false;
 bool lastRtcOkLogged = true;
 
 // --------------------------------------------------------------------
+// NEXTION: état feu (IDLE/RUN/COOLDOWN)
+// --------------------------------------------------------------------
+enum FireState : uint8_t { FIRE_IDLE = 0, FIRE_RUN = 1, FIRE_COOLDOWN = 2 };
+static FireState lastNextionFireState = FIRE_IDLE;
+static bool nextionFireStateInit = false;
+
+// --------------------------------------------------------------------
 // PATCH TEST RTC: instrumentation rtcReadOk() / I2C load
 // --------------------------------------------------------------------
 static volatile uint32_t g_rtc_calls = 0;
@@ -302,6 +309,7 @@ void printSnapshot();
 void applyOutputs();
 void forceCooldown(unsigned long now);
 void serviceNextion();
+void updateNextionFireState(bool force);
 
 // --------------------------------------------------------------------
 // OUTILS CRC / EEPROM
@@ -997,6 +1005,8 @@ void logAutoEventIfChanged(unsigned long nowMs) {
     Serial.print(F("[EVT] since lastAutoCommandMs = "));
     Serial.print((unsigned long)(millis() - lastAutoCommandMs));
     Serial.println(F(" ms"));
+
+    updateNextionFireState(true);
   }
 }
 
@@ -1560,6 +1570,45 @@ void handleNextionCommand(const String &lineIn) {
   Serial.println(line);
 }
 
+void nextionSendCommand(const __FlashStringHelper* cmd) {
+#if ENABLE_NEXTION
+  NEXTION_SERIAL.print(cmd);
+  NEXTION_SERIAL.write(0xFF);
+  NEXTION_SERIAL.write(0xFF);
+  NEXTION_SERIAL.write(0xFF);
+#else
+  (void)cmd;
+#endif
+}
+
+void updateNextionFireState(bool force) {
+#if ENABLE_NEXTION
+  FireState state = FIRE_IDLE;
+  if (boilerOn) state = FIRE_RUN;
+  else if (stopCooldownActive) state = FIRE_COOLDOWN;
+
+  if (!force && nextionFireStateInit && state == lastNextionFireState) return;
+
+  lastNextionFireState = state;
+  nextionFireStateInit = true;
+
+  switch (state) {
+    case FIRE_RUN:
+      nextionSendCommand(F("redfire.en=1"));
+      break;
+    case FIRE_COOLDOWN:
+      nextionSendCommand(F("flashfire.en=1"));
+      break;
+    case FIRE_IDLE:
+    default:
+      nextionSendCommand(F("grayfire.en=1"));
+      break;
+  }
+#else
+  (void)force;
+#endif
+}
+
 void serviceNextion() {
 #if ENABLE_NEXTION
   static String buffer;
@@ -1745,6 +1794,7 @@ void setup() {
   printTimeLine();
 
   lastTickMs = millis();
+  updateNextionFireState(true);
 
   // Activer WDT en fin de setup (après initialisations)
 #if defined(ARDUINO_ARCH_AVR) && ENABLE_WDT
