@@ -263,6 +263,15 @@ bool lastCooldownLogged = false;
 bool lastRtcOkLogged = true;
 
 // --------------------------------------------------------------------
+// NEXTION: état feu (IDLE/RUN/COOLDOWN)
+// --------------------------------------------------------------------
+enum FireState : uint8_t { FIRE_IDLE = 0, FIRE_RUN = 1, FIRE_COOLDOWN = 2 };
+static FireState lastNextionFireState = FIRE_IDLE;
+static bool nextionFireStateInit = false;
+static bool lastNextionCandleOn = false;
+static bool nextionCandleInit = false;
+
+// --------------------------------------------------------------------
 // PATCH TEST RTC: instrumentation rtcReadOk() / I2C load
 // --------------------------------------------------------------------
 static volatile uint32_t g_rtc_calls = 0;
@@ -302,6 +311,9 @@ void printSnapshot();
 void applyOutputs();
 void forceCooldown(unsigned long now);
 void serviceNextion();
+void updateNextionFireState(bool force);
+void updateNextionControlMode(bool force);
+void updateNextionCandleState(bool force);
 
 // --------------------------------------------------------------------
 // OUTILS CRC / EEPROM
@@ -997,6 +1009,8 @@ void logAutoEventIfChanged(unsigned long nowMs) {
     Serial.print(F("[EVT] since lastAutoCommandMs = "));
     Serial.print((unsigned long)(millis() - lastAutoCommandMs));
     Serial.println(F(" ms"));
+
+    updateNextionFireState(true);
   }
 }
 
@@ -1560,6 +1574,87 @@ void handleNextionCommand(const String &lineIn) {
   Serial.println(line);
 }
 
+void nextionSendCommand(const __FlashStringHelper* cmd) {
+#if ENABLE_NEXTION
+  NEXTION_SERIAL.print(cmd);
+  NEXTION_SERIAL.write(0xFF);
+  NEXTION_SERIAL.write(0xFF);
+  NEXTION_SERIAL.write(0xFF);
+#else
+  (void)cmd;
+#endif
+}
+
+void updateNextionFireState(bool force) {
+#if ENABLE_NEXTION
+  FireState state = FIRE_IDLE;
+  if (boilerOn) state = FIRE_RUN;
+  else if (stopCooldownActive) state = FIRE_COOLDOWN;
+
+  if (!force && nextionFireStateInit && state == lastNextionFireState) return;
+
+  lastNextionFireState = state;
+  nextionFireStateInit = true;
+
+  switch (state) {
+    case FIRE_RUN:
+      nextionSendCommand(F("redfire.en=1"));
+      nextionSendCommand(F("page0.nofire.aph=0"));
+      nextionSendCommand(F("page1.nofire.aph=0"));
+      break;
+    case FIRE_COOLDOWN:
+      nextionSendCommand(F("flashfire.en=1"));
+      break;
+    case FIRE_IDLE:
+    default:
+      nextionSendCommand(F("grayfire.en=1"));
+      nextionSendCommand(F("page0.nofire.aph=127"));
+      nextionSendCommand(F("page1.nofire.aph=127"));
+      break;
+  }
+#else
+  (void)force;
+#endif
+}
+
+void updateNextionControlMode(bool force) {
+#if ENABLE_NEXTION
+  static bool lastAuto = false;
+  static bool init = false;
+
+  bool isAuto = (controlMode == MODE_AUTO);
+  if (!force && init && isAuto == lastAuto) return;
+
+  lastAuto = isAuto;
+  init = true;
+
+  if (isAuto) nextionSendCommand(F("page0.sw0.val=1"));
+  else nextionSendCommand(F("page0.sw0.val=0"));
+#else
+  (void)force;
+#endif
+}
+
+void updateNextionCandleState(bool force) {
+#if ENABLE_NEXTION
+  bool candleOn = stateCandle;
+  if (!force && nextionCandleInit && candleOn == lastNextionCandleOn) return;
+
+  lastNextionCandleOn = candleOn;
+  nextionCandleInit = true;
+
+  if (candleOn) {
+    nextionSendCommand(F("page0.bougie.aph=127"));
+    nextionSendCommand(F("page1.bougie.aph=127"));
+  } else {
+    nextionSendCommand(F("page0.bougie.aph=0"));
+    nextionSendCommand(F("page1.bougie.aph=0"));
+  }
+#else
+  (void)force;
+#endif
+}
+
 void serviceNextion() {
 #if ENABLE_NEXTION
   static String buffer;
@@ -1745,6 +1840,9 @@ void setup() {
   printTimeLine();
 
   lastTickMs = millis();
+  updateNextionFireState(true);
+  updateNextionControlMode(true);
+  updateNextionCandleState(true);
 
   // Activer WDT en fin de setup (après initialisations)
 #if defined(ARDUINO_ARCH_AVR) && ENABLE_WDT
@@ -1778,6 +1876,8 @@ void loop() {
 
   // Service chaudière
   boilerBasicService(now);
+
+  updateNextionCandleState(false);
 
   // Patch: debug + failsafe vis
   pelletDebugAndFailsafe(now);
