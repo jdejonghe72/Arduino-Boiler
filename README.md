@@ -1,4 +1,4 @@
-## Arduino-based pellet boiler with Nextion display. 🔥
+## Arduino-based pellet boiler with Nextion display 🔥
 ### M-Duino 38AR+: Basic boiler + MAX6675 (without library)
 + RTC + EEPROM + Weekly planning (2 beaches/day)
 + Safety: diagnosis-only in IDLE, latch + cooldown in RUN/COOLDOWN
