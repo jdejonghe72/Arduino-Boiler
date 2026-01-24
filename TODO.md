@@ -1,3 +1,4 @@
+# TODO:
 - [x] Ajouter Bouton pour forcer Idle/Cooldown
 - [x] Ajouter Indicateurs de fonctionnement
 - [ ] Ajouter programmation SETDAY sur l'écran Nextion
