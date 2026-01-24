@@ -1,1 +1,1 @@
-Arduino-based pellet boiler with Nextion display.
+## Arduino-based pellet boiler with Nextion display.
