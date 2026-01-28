@@ -20,4 +20,4 @@
    - Tools > Model > M-DUINO 38AR+
 
 
-<img src="https://github.com/user-attachments/assets/bc547c7a-eea5-4014-8e09-e56e7d0db5f2" alt="Projet photo" width="400">
+<img src="https://github.com/user-attachments/assets/bc547c7a-eea5-4014-8e09-e56e7d0db5f2" alt="Projet photo" width="400" style="border-radius: 15px;">
