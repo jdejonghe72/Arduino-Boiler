@@ -20,4 +20,13 @@
    - Tools > Model > M-DUINO 38AR+
 
 
-<img src="https://github.com/user-attachments/assets/bc547c7a-eea5-4014-8e09-e56e7d0db5f2" alt="Projet photo" width="400" style="border-radius: 15px;">
+<div align="center">
+<svg width="400" height="300" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <defs>
+    <clipPath id="rounded">
+      <rect width="400" height="300" rx="15" ry="15"/>
+    </clipPath>
+  </defs>
+  <image width="400" height="300" xlink:href="https://github.com/user-attachments/assets/bc547c7a-eea5-4014-8e09-e56e7d0db5f2" clip-path="url(#rounded)"/>
+</svg>
+</div>
