@@ -314,6 +314,8 @@ void serviceNextion();
 void updateNextionFireState(bool force);
 void updateNextionControlMode(bool force);
 void updateNextionCandleState(bool force);
+void nextionSendCommand(const String &cmd);
+void nextionSendDaySchedule(uint8_t day1to7);
 
 // --------------------------------------------------------------------
 // OUTILS CRC / EEPROM
@@ -1570,6 +1572,13 @@ void handleNextionCommand(const String &lineIn) {
   if (line == "COOLDOWN_ON")  { handleCommand("k1"); return; }
   if (line == "COOLDOWN_OFF") { handleCommand("k0"); return; }
 
+  if (startsWithNoCase(line, "SETDAY")) { handleCommand(line); return; }
+  if (startsWithNoCase(line, "LOAD_")) {
+    int day = line.substring(5).toInt();
+    nextionSendDaySchedule((uint8_t)day);
+    return;
+  }
+
   Serial.print(F("Nextion cmd inconnu: "));
   Serial.println(line);
 }
@@ -1583,6 +1592,54 @@ void nextionSendCommand(const __FlashStringHelper* cmd) {
 #else
   (void)cmd;
 #endif
+}
+
+void nextionSendCommand(const String &cmd) {
+#if ENABLE_NEXTION
+  NEXTION_SERIAL.print(cmd);
+  NEXTION_SERIAL.write(0xFF);
+  NEXTION_SERIAL.write(0xFF);
+  NEXTION_SERIAL.write(0xFF);
+#else
+  (void)cmd;
+#endif
+}
+
+static uint8_t minuteToHourClamped(uint16_t m) {
+  if (m > 1439) m = 1439;
+  return (uint8_t)(m / 60);
+}
+
+static uint8_t minuteToQuarter(uint16_t m) {
+  if (m > 1439) m = 1439;
+  uint8_t mm = (uint8_t)(m % 60);
+  uint8_t q = (uint8_t)((mm + 7) / 15);
+  if (q > 3) q = 3;
+  return q;
+}
+
+void nextionSendDaySchedule(uint8_t day1to7) {
+  if (day1to7 < 1 || day1to7 > 7) return;
+  DaySchedule &ds = weekSched[day1to7 - 1];
+
+  uint8_t h1 = minuteToHourClamped(ds.start1);
+  uint8_t m1 = minuteToQuarter(ds.start1);
+  uint8_t h2 = minuteToHourClamped(ds.end1);
+  uint8_t m2 = minuteToQuarter(ds.end1);
+  uint8_t h3 = minuteToHourClamped(ds.start2);
+  uint8_t m3 = minuteToQuarter(ds.start2);
+  uint8_t h4 = minuteToHourClamped(ds.end2);
+  uint8_t m4 = minuteToQuarter(ds.end2);
+
+  nextionSendCommand(String("H1.val=") + h1);
+  nextionSendCommand(String("M1.val=") + m1);
+  nextionSendCommand(String("H2.val=") + h2);
+  nextionSendCommand(String("M2.val=") + m2);
+  nextionSendCommand(String("H3.val=") + h3);
+  nextionSendCommand(String("M3.val=") + m3);
+  nextionSendCommand(String("H4.val=") + h4);
+  nextionSendCommand(String("M4.val=") + m4);
+  nextionSendCommand(F("loadDONE.en=1"));
 }
 
 void updateNextionFireState(bool force) {
