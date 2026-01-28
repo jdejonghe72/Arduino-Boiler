@@ -314,7 +314,6 @@ void serviceNextion();
 void updateNextionFireState(bool force);
 void updateNextionControlMode(bool force);
 void updateNextionCandleState(bool force);
-void nextionSendCommand(const String &cmd);
 void nextionSendDaySchedule(uint8_t day1to7);
 void nextionSendValue(const char* id, uint8_t val);
 
@@ -1574,7 +1573,7 @@ void handleNextionCommand(const String &lineIn) {
   if (line == "COOLDOWN_OFF") { handleCommand("k0"); return; }
 
   if (startsWithNoCase(line, "SETDAY")) { handleCommand(line); return; }
-  if (line.startsWith("LOAD_")) {
+  if (startsWithNoCase(line, "LOAD_")) {
     int day = line.substring(5).toInt();
     if (day < 1 || day > 7) {
       Serial.println(F("ERR: LOAD_<1..7>"));
