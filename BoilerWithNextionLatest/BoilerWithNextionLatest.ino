@@ -316,6 +316,7 @@ void updateNextionControlMode(bool force);
 void updateNextionCandleState(bool force);
 void nextionSendCommand(const String &cmd);
 void nextionSendDaySchedule(uint8_t day1to7);
+void nextionSendValue(const char* id, uint8_t val);
 
 // --------------------------------------------------------------------
 // OUTILS CRC / EEPROM
@@ -1573,8 +1574,12 @@ void handleNextionCommand(const String &lineIn) {
   if (line == "COOLDOWN_OFF") { handleCommand("k0"); return; }
 
   if (startsWithNoCase(line, "SETDAY")) { handleCommand(line); return; }
-  if (startsWithNoCase(line, "LOAD_")) {
+  if (line.startsWith("LOAD_")) {
     int day = line.substring(5).toInt();
+    if (day < 1 || day > 7) {
+      Serial.println(F("ERR: LOAD_<1..7>"));
+      return;
+    }
     nextionSendDaySchedule((uint8_t)day);
     return;
   }
@@ -1594,14 +1599,16 @@ void nextionSendCommand(const __FlashStringHelper* cmd) {
 #endif
 }
 
-void nextionSendCommand(const String &cmd) {
+void nextionSendValue(const char* id, uint8_t val) {
 #if ENABLE_NEXTION
-  NEXTION_SERIAL.print(cmd);
+  NEXTION_SERIAL.print(id);
+  NEXTION_SERIAL.print(F(".val="));
+  NEXTION_SERIAL.print(val);
   NEXTION_SERIAL.write(0xFF);
   NEXTION_SERIAL.write(0xFF);
   NEXTION_SERIAL.write(0xFF);
 #else
-  (void)cmd;
+  (void)id; (void)val;
 #endif
 }
 
@@ -1631,14 +1638,14 @@ void nextionSendDaySchedule(uint8_t day1to7) {
   uint8_t h4 = minuteToHourClamped(ds.end2);
   uint8_t m4 = minuteToQuarter(ds.end2);
 
-  nextionSendCommand(String("H1.val=") + h1);
-  nextionSendCommand(String("M1.val=") + m1);
-  nextionSendCommand(String("H2.val=") + h2);
-  nextionSendCommand(String("M2.val=") + m2);
-  nextionSendCommand(String("H3.val=") + h3);
-  nextionSendCommand(String("M3.val=") + m3);
-  nextionSendCommand(String("H4.val=") + h4);
-  nextionSendCommand(String("M4.val=") + m4);
+  nextionSendValue("H1", h1);
+  nextionSendValue("M1", m1);
+  nextionSendValue("H2", h2);
+  nextionSendValue("M2", m2);
+  nextionSendValue("H3", h3);
+  nextionSendValue("M3", m3);
+  nextionSendValue("H4", h4);
+  nextionSendValue("M4", m4);
   nextionSendCommand(F("loadDONE.en=1"));
 }
 
