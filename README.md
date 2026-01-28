@@ -1,9 +1,13 @@
 ## Arduino-based pellet boiler with Nextion display 🔥
 
+<div style="color: white;">
+
 >#### Here is my project for a DIY-Retrofited pellet boiler
 > + You can find the Arduino Code in the `BoilerWithNextionLatest` directory.
 > + The Nextion HMI file is in the `Nextion HMI` directory.
 > + Other ressources are in the `Documetation` directory.
+
+</div>
 
 > [!Note]
 > Most of the ressources are in French for the moment.
