@@ -314,6 +314,8 @@ void serviceNextion();
 void updateNextionFireState(bool force);
 void updateNextionControlMode(bool force);
 void updateNextionCandleState(bool force);
+void nextionSendDaySchedule(uint8_t day1to7);
+void nextionSendValue(const char* id, uint8_t val);
 
 // --------------------------------------------------------------------
 // OUTILS CRC / EEPROM
@@ -1570,6 +1572,17 @@ void handleNextionCommand(const String &lineIn) {
   if (line == "COOLDOWN_ON")  { handleCommand("k1"); return; }
   if (line == "COOLDOWN_OFF") { handleCommand("k0"); return; }
 
+  if (startsWithNoCase(line, "SETDAY")) { handleCommand(line); return; }
+  if (startsWithNoCase(line, "LOAD_")) {
+    int day = line.substring(5).toInt();
+    if (day < 1 || day > 7) {
+      Serial.println(F("ERR: LOAD_<1..7>"));
+      return;
+    }
+    nextionSendDaySchedule((uint8_t)day);
+    return;
+  }
+
   Serial.print(F("Nextion cmd inconnu: "));
   Serial.println(line);
 }
@@ -1583,6 +1596,56 @@ void nextionSendCommand(const __FlashStringHelper* cmd) {
 #else
   (void)cmd;
 #endif
+}
+
+void nextionSendValue(const char* id, uint8_t val) {
+#if ENABLE_NEXTION
+  NEXTION_SERIAL.print(id);
+  NEXTION_SERIAL.print(F(".val="));
+  NEXTION_SERIAL.print(val);
+  NEXTION_SERIAL.write(0xFF);
+  NEXTION_SERIAL.write(0xFF);
+  NEXTION_SERIAL.write(0xFF);
+#else
+  (void)id; (void)val;
+#endif
+}
+
+static uint8_t minuteToHourClamped(uint16_t m) {
+  if (m > 1439) m = 1439;
+  return (uint8_t)(m / 60);
+}
+
+static uint8_t minuteToQuarter(uint16_t m) {
+  if (m > 1439) m = 1439;
+  uint8_t mm = (uint8_t)(m % 60);
+  uint8_t q = (uint8_t)((mm + 7) / 15);
+  if (q > 3) q = 3;
+  return q;
+}
+
+void nextionSendDaySchedule(uint8_t day1to7) {
+  if (day1to7 < 1 || day1to7 > 7) return;
+  DaySchedule &ds = weekSched[day1to7 - 1];
+
+  uint8_t h1 = minuteToHourClamped(ds.start1);
+  uint8_t m1 = minuteToQuarter(ds.start1);
+  uint8_t h2 = minuteToHourClamped(ds.end1);
+  uint8_t m2 = minuteToQuarter(ds.end1);
+  uint8_t h3 = minuteToHourClamped(ds.start2);
+  uint8_t m3 = minuteToQuarter(ds.start2);
+  uint8_t h4 = minuteToHourClamped(ds.end2);
+  uint8_t m4 = minuteToQuarter(ds.end2);
+
+  nextionSendValue("H1", h1);
+  nextionSendValue("M1", m1);
+  nextionSendValue("H2", h2);
+  nextionSendValue("M2", m2);
+  nextionSendValue("H3", h3);
+  nextionSendValue("M3", m3);
+  nextionSendValue("H4", h4);
+  nextionSendValue("M4", m4);
+  nextionSendCommand(F("loadDONE.en=1"));
 }
 
 void updateNextionFireState(bool force) {
