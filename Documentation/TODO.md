@@ -9,3 +9,4 @@
   - [x] Changer le texte du bouton autoload
 - [x] STOP/START possibles quand en programmation et START possible quand CoolDown
 - [ ] Ajouter une vue de la température/indication de défaut de pellets/etc. sur l'écran Nextion
+- [ ] Force CoolDown doit durer 10 min
