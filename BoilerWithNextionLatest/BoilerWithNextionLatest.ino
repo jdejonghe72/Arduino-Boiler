@@ -39,6 +39,7 @@
 
 #include <Arduino.h>
 #include <math.h>
+#include <ctype.h>
 #include <EEPROM.h>
 #include <RTC.h>
 
@@ -1233,13 +1234,53 @@ static bool startsWithNoCase(const String& s, const char* prefix) {
   return true;
 }
 
+static bool isDigitsOnly(const String& s) {
+  if (s.length() == 0) return false;
+  for (unsigned int i = 0; i < s.length(); i++) {
+    if (!isDigit((unsigned char)s.charAt(i))) return false;
+  }
+  return true;
+}
+
+static bool parseUInt16Strict(const String& s, uint16_t& out) {
+  if (!isDigitsOnly(s)) return false;
+  unsigned long v = s.toInt();
+  if (v > 65535UL) return false;
+  out = (uint16_t)v;
+  return true;
+}
+
+static bool parseFloatStrict(const String& s, float& out) {
+  if (s.length() == 0) return false;
+  bool seenDigit = false;
+  bool seenDot = false;
+  for (unsigned int i = 0; i < s.length(); i++) {
+    char c = s.charAt(i);
+    if (c >= '0' && c <= '9') {
+      seenDigit = true;
+      continue;
+    }
+    if (c == '.') {
+      if (seenDot) return false;
+      seenDot = true;
+      continue;
+    }
+    return false;
+  }
+  if (!seenDigit) return false;
+  out = s.toFloat();
+  return true;
+}
+
 static int parseHHMM_toMin(const String& hhmm) {
   int colon = hhmm.indexOf(':');
   if (colon < 0) return -1;
-  int hh = hhmm.substring(0, colon).toInt();
-  int mm = hhmm.substring(colon + 1).toInt();
+  String hhStr = hhmm.substring(0, colon);
+  String mmStr = hhmm.substring(colon + 1);
+  uint16_t hh = 0, mm = 0;
+  if (!parseUInt16Strict(hhStr, hh) || !parseUInt16Strict(mmStr, mm)) return -1;
   if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return -1;
-  return hh * 60 + mm;
+  return (int)(hh * 60 + mm);
 }
 
 void handleCommand(const String &lineIn) {
@@ -1296,13 +1337,20 @@ void handleCommand(const String &lineIn) {
     int t1 = t.indexOf(':'), t2 = t.lastIndexOf(':');
     if (d1 < 0 || d2 <= d1 || t1 < 0 || t2 <= t1) { Serial.println(F("ERR: SETTIME format.")); return; }
 
-    int Y  = d.substring(0, d1).toInt();
-    int M  = d.substring(d1 + 1, d2).toInt();
-    int DD = d.substring(d2 + 1).toInt();
-
-    int hh = t.substring(0, t1).toInt();
-    int mm = t.substring(t1 + 1, t2).toInt();
-    int ss = t.substring(t2 + 1).toInt();
+    uint16_t Y = 0, M = 0, DD = 0, hh = 0, mm = 0, ss = 0;
+    if (!parseUInt16Strict(d.substring(0, d1), Y) ||
+        !parseUInt16Strict(d.substring(d1 + 1, d2), M) ||
+        !parseUInt16Strict(d.substring(d2 + 1), DD) ||
+        !parseUInt16Strict(t.substring(0, t1), hh) ||
+        !parseUInt16Strict(t.substring(t1 + 1, t2), mm) ||
+        !parseUInt16Strict(t.substring(t2 + 1), ss)) {
+      Serial.println(F("ERR: SETTIME valeurs invalides."));
+      return;
+    }
+    if (M < 1 || M > 12 || DD < 1 || DD > 31 || hh > 23 || mm > 59 || ss > 59) {
+      Serial.println(F("ERR: SETTIME hors plage."));
+      return;
+    }
 
     RTC.setYear(Y);
     RTC.setMonth(M);
@@ -1368,7 +1416,8 @@ void handleCommand(const String &lineIn) {
     }
     if (ti != 5) { Serial.println(F("ERR: SETDAY D HH:MM HH:MM HH:MM HH:MM")); return; }
 
-    int D = tok[0].toInt();
+    uint16_t D = 0;
+    if (!parseUInt16Strict(tok[0], D)) { Serial.println(F("ERR: D must be 1..7 (Mon..Sun).")); return; }
     if (D < 1 || D > 7) { Serial.println(F("ERR: D must be 1..7 (Mon..Sun).")); return; }
 
     int s1 = parseHHMM_toMin(tok[1]);
@@ -1400,9 +1449,10 @@ void handleCommand(const String &lineIn) {
   if (startsWithNoCase(line, "PP")) {
     int sp = line.indexOf(' ');
     if (sp < 0) { Serial.println(F("ERR: PP <ms>")); return; }
-    long v = line.substring(sp + 1).toInt();
+    uint16_t v = 0;
+    if (!parseUInt16Strict(line.substring(sp + 1), v)) { Serial.println(F("ERR: PP <ms>")); return; }
     if (v < 1000 || v > 60000) { Serial.println(F("ERR: PP range 1000..60000")); return; }
-    pelletCyclePeriodMs = (unsigned long)v;
+    pelletCyclePeriodMs = v;
     if (!validatePowerParams(true)) return;
     Serial.println(F("OK"));
     return;
@@ -1411,9 +1461,10 @@ void handleCommand(const String &lineIn) {
   if (startsWithNoCase(line, "PON")) {
     int sp = line.indexOf(' ');
     if (sp < 0) { Serial.println(F("ERR: PON <ms>")); return; }
-    long v = line.substring(sp + 1).toInt();
+    uint16_t v = 0;
+    if (!parseUInt16Strict(line.substring(sp + 1), v)) { Serial.println(F("ERR: PON <ms>")); return; }
     if (v < 50 || v > 5000) { Serial.println(F("ERR: PON range 50..5000")); return; }
-    pelletOnDurationMs = (unsigned long)v;
+    pelletOnDurationMs = v;
     if (!validatePowerParams(true)) return;
     Serial.println(F("OK"));
     return;
@@ -1422,7 +1473,8 @@ void handleCommand(const String &lineIn) {
   if (startsWithNoCase(line, "FV")) {
     int sp = line.indexOf(' ');
     if (sp < 0) { Serial.println(F("ERR: FV <volts>")); return; }
-    float v = line.substring(sp + 1).toFloat();
+    float v = 0.0f;
+    if (!parseFloatStrict(line.substring(sp + 1), v)) { Serial.println(F("ERR: FV <volts>")); return; }
     if (v < 0.0f) v = 0.0f;
     if (v > 10.0f) v = 10.0f;
     runFanVoltageV = v;
@@ -1541,6 +1593,11 @@ void handleCommand(const String &lineIn) {
 
 void serviceSerial() {
   static String buffer;
+  static bool init = false;
+  if (!init) {
+    buffer.reserve(96);
+    init = true;
+  }
   while (Serial.available() > 0) {
     char c = (char)Serial.read();
     if (c == '\r') continue;
@@ -1722,6 +1779,11 @@ void serviceNextion() {
 #if ENABLE_NEXTION
   static String buffer;
   static uint8_t ffCount = 0;
+  static bool init = false;
+  if (!init) {
+    buffer.reserve(96);
+    init = true;
+  }
 
   while (NEXTION_SERIAL.available() > 0) {
     uint8_t b = (uint8_t)NEXTION_SERIAL.read();
