@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+env:
+  IS_INDEX: https://apps.industrialshields.com/main/arduino/boards/package_industrialshields_index.json
+
+jobs:
+  simulation:
+    name: Banc de simulation + outil HMI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scénarios (tests/run.sh)
+        run: tests/run.sh
+      - name: Outil HMI (export / import à l'identique)
+        run: |
+          cp "Nextion HMI/Interface Chaudiere Atom.HMI" "$RUNNER_TEMP/check.HMI"
+          python3 "Nextion HMI/hmi_tool.py" export "$RUNNER_TEMP/check.HMI" "$RUNNER_TEMP/pages"
+          python3 "Nextion HMI/hmi_tool.py" import "$RUNNER_TEMP/check.HMI" "$RUNNER_TEMP/pages"
+          cmp "$RUNNER_TEMP/check.HMI" "Nextion HMI/Interface Chaudiere Atom.HMI"
+
+  compile:
+    name: Compilation M-Duino 38AR+
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: arduino/setup-arduino-cli@v2
+      - name: Core Industrial Shields
+        run: |
+          arduino-cli core update-index --additional-urls "$IS_INDEX"
+          arduino-cli core install industrialshields:avr --additional-urls "$IS_INDEX"
+      - name: Compilation
+        run: >
+          arduino-cli compile --fqbn industrialshields:avr:mduino:cpu=mduino38arplus
+          --warnings all --additional-urls "$IS_INDEX" BoilerWithNextionLatest
